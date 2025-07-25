@@ -25,7 +25,7 @@ local function test(instance, propertyname, valuetype)
 		if not ok or (type(result) == "string" and string.find(result, "Unable to get property ", 1, true)) then
 			print("⛔ "..valuetype.." "..result)
 			FailedTests += 1	
-		elseif result == nil and valuetype ~= "OptionalCoordinateFrame" then
+		elseif result == nil then
 			print("🟠 "..valuetype)
 			NilResults += 1
 		else
@@ -70,11 +70,12 @@ if IncludeUnnecessityTypes then
 	test(test_WRAPLAYER, "Color", "Color3") -- Color3
 	test(Instance.new("UIListLayout"), "HorizontalPadding", "UDim") -- Udim
 	test(test_WRAPLAYER, "HSRAssetId", "ContentId") -- ContentId
+	test(workspace, "HistoryId", "UniqueId") -- UniqueId
 end
 
 test(test_WELDCONSTRAINT, "Part0Internal", "Category:Class") -- Class Category
 test(Instance.new("AnimationRigData"), "parent", "BinaryString") -- BinaryString
-test(test_PART, "NetworkOwnerV3", "SystemAddress") -- SystemAddress, todo: test if created parts have a networkownerv3
+test(test_PART, "NetworkOwnerV3", "SystemAddress") -- SystemAddress
 if IgnoreSharedStrings then -- SharedString
 	test(nil, nil, "SharedString")
 else
@@ -83,7 +84,6 @@ end
 test(test_PART, "Color3uint8", "Color3uint8") -- Color3uint8
 test(Instance.new("TerrainRegion"), "ExtentsMax", "Vector3int16") -- Vector3int16
 test(Instance.new("Model"), "WorldPivotData", "OptionalCoordinateFrame") -- OptionalCoordinateFrame todo: make this have a value instead of nil
-test(workspace, "UniqueId", "UniqueId") -- UniqueId
 test(findinstance("UnionOperation"), "DCDPropertyData", "CSGPropertyData") -- CSGPropertyData
 test(findinstance("UnionOperation"), "ConvexDecompHolder", "NetAssetRef") -- NetAssetRef
 test(test_PART, "ReplicationPV", "ReplicationPV") -- ReplicationPV
