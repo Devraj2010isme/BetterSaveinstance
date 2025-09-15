@@ -29,19 +29,23 @@ synsaveinstance(Options)
 - Option SaveCompilationErrors
   - View docs for more info
   - Default: true
-- Option Crashlog 
+- Option Crashlog
+- Support for saving attributes/tags of the folder substitutes created by isolate options (IsolateLocalPlayer, etc)
 - Support for properties which cannot be saved or loaded by roblox studio (CanSave or CanLoad = false in the api dump)
   - Works by converting them to attributes
   - Enabled with the option SaveAsAttributes
 - Support for saving properties of instances with a NotCreatableFix
   - Works by converting them to attributes
-  - Enabled with the option SavePropsAsAttributesForNotCreatableFixes
+  - Enabled with the option SavePropsAsAttributesForNotCreatableFixes 
 - Better default executors for many options
+- A fix for the UGCValidationService detection
+  - Disabled by default, enabled with the option DisableGethiddenpropertyFallback
+  - It's recommended only to enable this if you encounter a detection, as some properties cannot be read by normal gethiddenproperty and need the fallback
 - Support for custom modes
   - Allows for providing a table of service names for the mode option
-  - Works the same as optimized mode, but allows for the changing that hardcoded table.
+  - Works the same as optimized mode, but allows for the changing that hardcoded table
 - More small changes and fixes
-   - Option IsolateLocalPlayerCharacter now isolates as a model instead of a folder. (fixes some rendering issues)
+   - Option IsolateLocalPlayerCharacter now isolates as a model instead of a folder
    - NotCreatableFixes for Dragger and AdvancedDragger, as they prevent the file from opening
 # Universal Syn Save Instance
 
@@ -73,13 +77,16 @@ All options are case insensitive.
 - SafeMode: `boolean`
   - Kicks you before Saving, which prevents you from being detected in any game.
   - Default: false
+- DisableGethiddenpropertyFallback: `boolean`
+  - Prevents detections in some games
+  - Default: false 
 - ShutdownWhenDone: `boolean`
   - Shuts the game down after saveinstance is finished.
   - Default: false
 - AntiIdle: `boolean`
   - Prevents the 20-minute-Idle Kick.
   - Default: true
-- Anonymous: `boolean or table`
+- Anonymous: `boolean | table`
   - Cleans the file of any info related to your account like: Name, UserId.
   - This is useful for some games that might store that info in GUIs or other Instances.
   - Might potentially mess up parts of strings that contain characters that match your Name or parts of numbers that match your UserId.
@@ -92,7 +99,7 @@ All options are case insensitive.
 - Callback: `function`
   - If set, the serialized data will be sent to the callback function instead of to file.
   - Default: false
-- mode: `string or table`
+- mode: `string | table`
   - Controls what instances to save.
   - Valid Modes:
     - optimized: Saves a hardcoded list of services, best for general use.
@@ -111,7 +118,7 @@ All options are case insensitive.
   - Default: true
 - decomptype: `string`
   - "custom" - for a built-in custom decompiler.
-  - Uses Konstant 2.1, locally hosted instead of the API to increase speed. ([Konstant Discord Server](https://discord.gg/wyButjTMhM), [Konstant Decompiled Source Code](https://raw.githubusercontent.com/Devraj2010isme/BetterSaveinstance/refs/heads/main/Dependencies/Konstant%20V2.1.luau))
+  - Uses Konstant 2.1, locally hosted instead of the API to increase speed. ([Konstant Discord Server](https://discord.gg/brNTY8nX8t), [Konstant Decompiled Source Code](https://raw.githubusercontent.com/Devraj2010isme/BetterSaveinstance/refs/heads/main/Dependencies/Konstant%20V2.1.luau))
   - Default: Your executor's decompiler, if available. Otherwise uses "custom" if not.
 - timeout: `number`
   - If the decompilation run time exceeds this value it gets cancelled.
@@ -145,6 +152,7 @@ All options are case insensitive.
 - IgnoreList: `{Instance | Instance.ClassName | [Instance.ClassName]={Instance.Name}}`
   - Prevents instances from saving.
   - Structure is similar to @DecompileIgnore except = false meaning if you ignore one instance it will automatically ignore its descendants.
+  - Aliases: InstancesBlacklist 
   - Default: {CoreGui, CorePackages}
 - ExtraInstances: `{Instance}`
   - If used with any invalid mode (like "invalidmode") it will only save these instances.
@@ -212,7 +220,7 @@ All options are case insensitive.
 - NotCreatableFixes: `table<Instance.ClassName>`
   - The instances to convert using SaveNotCreatable
   - {"Player"} is the same as {Player = "Folder"}; Format like {SpawnLocation = "Part"} is only to be used when SpawnLocation inherits from "Part" AND "Part" is Creatable.
-  - Default: { "", "AnimationTrack", "Player", "PlayerGui", "PlayerScripts", "PlayerMouse", "ScreenshotHud", "StudioData", "TextSource", "TouchTransmitter", "Dragger", "AdvancedDragger" }
+  - Default: {["CloudLocalizationTable"] = "LocalizationTable", ["InputObject"] = "Folder", ["LodDataEntity"] = "Folder", ["LodDataService"] = "Folder",["Translator"] = "Folder", ["TextChatMessage"] = "Folder", [""] = "Folder", ["AnimationTrack"] = "Folder", ["Player"] = "Folder", ["PlayerGui"] = "Folder", ["PlayerScripts"] = "Folder", ["PlayerMouse"] = "Folder", ["ScreenshotHud"] = "Folder", ["StudioData"] = "Folder", ["TextSource"] = "Folder", ["TouchTransmitter"] = "Folder", ["Dragger"] = "Folder", ["AdvancedDragger"] = "Folder"}
  - SavePropsAsAttributesForNotCreatableFixes
    - Converts CanSave/CanLoad properties of instances with a NotCreatableFix which can't be saved otherwise into attributes.
    - Enables SaveNotCreatable
@@ -242,6 +250,7 @@ All options are case insensitive.
   - Default: false (except on Solara, Xeno, and JJSploit)
 # Function Documentation
 - SynSaveInstance.saveinstance(
+  - Yields
   - Parameter_1: `variant<table,table<Instance>>`
     - Can either be SynSaveInstance.CustomOptions table or a filled with instances ({Instance}).
     - If it is filled with instances, then it will be treated as ExtraInstances with an invalid mode and IsModel will be true.
