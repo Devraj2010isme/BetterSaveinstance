@@ -69,6 +69,7 @@ local gethiddenproperty = global_container.gethiddenproperty
 local appendfile = appendfile
 local readfile = readfile
 local writefile = writefile
+local isfile = isfile
 
 local getscriptbytecode = global_container.getscriptbytecode -- * A lot of assumptions are made based on whether this function is defined or not. So in certain edge cases, like if the executor defines "decompile" or "getscripthash" function yet doesn't define this function there might be loss of functionality of the saveinstance. Although that would be very rare and weird
 local base64encode = global_container.base64encode
@@ -92,17 +93,7 @@ local service = setmetatable({}, {
 	end,
 })
 
-local gethiddenproperty_fallback
 do -- * Load Region of Déjà Vu
-	local UGCValidationService -- = service.UGCValidationService
-
-	gethiddenproperty_fallback = function(instance, propertyName)
-		if not UGCValidationService then
-			UGCValidationService = service.UGCValidationService
-		end
-		return UGCValidationService:GetPropertyValue(instance, propertyName) -- TODO Sadly there's no way to tell whether value is actually nil or the function just couldn't read it (always returns nil for "Class" category properties)
-		-- TODO `category ~= "Class"` causes WeldConstraint Part1Internal to be read as nil and not get unfiltered. Currently, there are no properties of category "Class" that match the following: NotScriptable, can be read with gethiddenproperty_fallback accurately (it always outputs nil for "Class" category, making that check useless anyway) & don't have a NotScriptableFix.
-	end
 	if gethiddenproperty and EXECUTOR_NAME ~= "Velocity" then -- Velocity fails due to enums not being supported, but BinaryString and SharedString still are (handled later)
 		local o, r = pcall(gethiddenproperty, workspace, "StreamOutBehavior")
 		if not o or r ~= nil and typeof(r) ~= "EnumItem" then -- * Tests if gethiddenproperty is broken
@@ -115,34 +106,6 @@ do -- * Load Region of Déjà Vu
 			end
 		end
 	end
-	
-	--if getspecialinfo and not gethiddenproperty then
-	--	local specialinfoindex = {
-	--		MeshPart = {"PhysicsData", "InitialSize"},
-	--		UnionOperation = {"AssetId", "ChildData", "FormFactor", "InitialSize", "MeshData", "PhysicsData"}, -- MeshData is no longer used, superseded by MeshData2, but ill leave it in. More info: https://devforum.roblox.com/t/research-on-csg/3554504
-	--		Terrain = { "SmoothGrid", "MaterialColors" },
-	--	}
-	--	local function getspecialinfo_benchmark()
-	--		local success, returned = pcall(getspecialinfo, workspace.Terrain)
-	--		if success then
-	--			return true
-	--		end
-	--	end
-	--	if getspecialinfo_benchmark() == true then
-	--		getspecinfo_ghp_fallback = function(instance, propertyName)
-	--			if specialinfoindex[instance.ClassName] and ArrayToDict(specialinfoindex[instance.ClassName])[propertyName] then
-	--				local ok, result = pcall(getspecialinfo, instance)
-	--				if ok then
-	--					return result[propertyName], true
-	--				else
-	--					return "can't get value" -- forces filterPropVal to fail
-	--				end	
-	--			else
-	--				return "can't get value"
-	--			end
-	--		end
-	--	end
-	--end
 	
 	local function benchmark(f1, f2, ...)
 		local ranking = table.create(2)
@@ -1036,14 +999,17 @@ XML_Descriptors = {
 	end,
 
 	-- UniqueId = function(raw) -- ? Not sure  -- ? No idea if this even needs a Descriptor
+	--
 	-- 	--[[
-	-- 		UniqueId properties might be random everytime Studio saves a place file
-	-- 		and don't have a use right now outside of packages, which SSI doesn't
+	--		Currently useless as in live games all UniqueIds are "00000000-0000-0000-0000-000000000000"
+	--		If a UniqueId is just zeros or is longer/shorter than 32 characters, a new UniqueId will be generated. (if the uniqueids are the same in other cases, Roblox Studio will crash)
+	--
+	-- 		UniqueId properties don't have a use right now outside of packages, which SSI doesn't
 	-- 		account for anyway. They generate diff noise, so we shouldn't serialize
 	-- 		them until we have to.
 	-- 	]]
-	-- 	-- https://github.com/MaximumADHD/Roblox-Client-Tracker/blob/roblox/LuaPackages/Packages/_Index/ApolloClientTesting/ApolloClientTesting/utilities/common/makeUniqueId.lua#L62
-	-- 	return ""
+	-- 	-- https://github.com/MaximumADHD/Roblox-Client-Tracker/blob/e615792759169f26fa367054bdad51dfd02aa04d/LuaPackages/Packages/_Index/ApolloClientTesting/ApolloClientTesting/utilities/common/makeUniqueId.lua
+	-- 	return string.gsub(raw, "-", "")
 	-- end,
 
 	Vector2 = function(raw)
@@ -1395,7 +1361,7 @@ do
 		Workspace = {
 			-- SignalBehavior2 = "SignalBehavior", -- * Both are NotScriptable so it doesn't make sense to keep
 			CollisionGroupData = function()
-				local collision_groups = game:GetService("PhysicsService"):GetRegisteredCollisionGroups()
+				local collision_groups = service.PhysicsService:GetRegisteredCollisionGroups()
 
 				local col_groups_n = #collision_groups
 
@@ -1448,9 +1414,6 @@ do
 		local API_Dump
 
 		local ok, err = pcall(function()
-			if EXECUTOR_NAME == "Zenith" then -- TODO Temp fix as it crashes on HttpGet for sites that return 403 code
- 				return
- 			end
 			local CLIENT_VERSION_str = tostring(CLIENT_VERSION)
 			local ok, result = pcall(readfile, CLIENT_VERSION_str)
 			if
@@ -1653,7 +1616,7 @@ end
 local GLOBAL_ENV = getgenv and getgenv() or _G or shared
 
 --[=[
-  # Options Documentation
+# Options Documentation
 > [!NOTE]
 All options are case insensitive.
 - __DEBUG_MODE: `boolean`
@@ -1668,6 +1631,9 @@ All options are case insensitive.
 - SafeMode: `boolean`
   - Kicks you before Saving, which prevents you from being detected in any game.
   - Default: false
+- DisableGethiddenpropertyFallback: `boolean`
+  - Prevents detections in some games
+  - Default: false 
 - ShutdownWhenDone: `boolean`
   - Shuts the game down after saveinstance is finished.
   - Default: false
@@ -1706,7 +1672,7 @@ All options are case insensitive.
   - Default: true
 - decomptype: `string`
   - "custom" - for a built-in custom decompiler.
-  - Uses Konstant 2.1, locally hosted instead of the API to increase speed. ([Konstant Discord Server](https://discord.gg/wyButjTMhM), [Konstant Decompiled Source Code](https://raw.githubusercontent.com/Devraj2010isme/BetterSaveinstance/refs/heads/main/Dependencies/Konstant%20V2.1.luau))
+  - Uses Konstant 2.1, locally hosted instead of the API to increase speed. ([Konstant Discord Server](https://discord.gg/brNTY8nX8t), [Konstant Decompiled Source Code](https://raw.githubusercontent.com/Devraj2010isme/BetterSaveinstance/refs/heads/main/Dependencies/Konstant%20V2.1.luau))
   - Default: Your executor's decompiler, if available. Otherwise uses "custom" if not.
 - timeout: `number`
   - If the decompilation run time exceeds this value it gets cancelled.
@@ -1740,6 +1706,7 @@ All options are case insensitive.
 - IgnoreList: `{Instance | Instance.ClassName | [Instance.ClassName]={Instance.Name}}`
   - Prevents instances from saving.
   - Structure is similar to @DecompileIgnore except = false meaning if you ignore one instance it will automatically ignore its descendants.
+  - Aliases: InstancesBlacklist 
   - Default: {CoreGui, CorePackages}
 - ExtraInstances: `{Instance}`
   - If used with any invalid mode (like "invalidmode") it will only save these instances.
@@ -1768,7 +1735,7 @@ All options are case insensitive.
   - Default: false
 - NilInstancesFixes: `{[Instance.ClassName]=function}`
   - This can cause some Classes to be fixed even though they might not need the fix (better be safe than sorry though). For example, Bones inherit from Attachment if we don't define them in the NilInstancesFixes then this will catch them anyways. TO AVOID THIS BEHAVIOR USE THIS EXAMPLE: {ClassName_That_Doesnt_Need_Fix = false}.
-  - Default: {Animator = function, AdPortal = function, BaseWrap = function, Attachment = function}
+  - Default: {Animator = function, AdPortal = function, Attachment = function, BaseWrap = function, PackageLink = function}
 - IgnoreDefaultProperties: `boolean`
   - Ignores default properties during saving.
   - Aliases: IgnoreDefaultProps
@@ -1807,9 +1774,10 @@ All options are case insensitive.
 - NotCreatableFixes: `table<Instance.ClassName>`
   - The instances to convert using SaveNotCreatable
   - {"Player"} is the same as {Player = "Folder"}; Format like {SpawnLocation = "Part"} is only to be used when SpawnLocation inherits from "Part" AND "Part" is Creatable.
-  - Default: { "", "Player", "PlayerScripts", "PlayerGui", "TouchTransmitter" }
+  - Default: { "", "AnimationTrack", "Player", "PlayerGui", "PlayerScripts", "PlayerMouse", "ScreenshotHud", "StudioData", "TextSource", "TouchTransmitter", "Dragger", "AdvancedDragger" }
  - SavePropsAsAttributesForNotCreatableFixes
    - Converts CanSave/CanLoad properties of instances with a NotCreatableFix which can't be saved otherwise into attributes.
+   - Enables SaveNotCreatable
    - Doesn't save properties when they are already saved normally. (Ex: In the spawnlocation example above, only properties that only apply to the spawnlocation, not the part will be saved)
    - Attribute Name Format: Same as SaveAsAttributes but with the prefix `__NotCreatableFix_`.
    - Default: false
@@ -1836,6 +1804,7 @@ All options are case insensitive.
   - Default: false (except on Solara, Xeno, and JJSploit)
 # Function Documentation
 - SynSaveInstance.saveinstance(
+  - Yields
   - Parameter_1: `variant<table,table<Instance>>`
     - Can either be SynSaveInstance.CustomOptions table or a filled with instances ({Instance}).
     - If it is filled with instances, then it will be treated as ExtraInstances with an invalid mode and IsModel will be true.
@@ -1875,6 +1844,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		timeout = 10,
 		-- * New:
 		__DEBUG_MODE = false,
+		DisableGethiddenpropertyFallback = false,
 		Crashlog = false,
 		-- Binary = false, -- true in syn newer versions (false in our case because no binary support yet), Description: Saves everything in Binary Mode (rbxl/rbxm).
 		Callback = false,
@@ -1924,23 +1894,25 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 
 		SaveNotCreatable = false,
 		NotCreatableFixes = {
-			-- "CloudLocalizationTable",
-			-- "InputObject",
-			-- "LodDataEntity",
-			-- "Path",
-			-- "Translator",
-			"", -- * FilteredSelection
-			"AnimationTrack",
-			"Player",
-			"PlayerGui",
-			"PlayerScripts",
-			"PlayerMouse",
-			"ScreenshotHud",
-			"StudioData",
-			"TextSource",
-			"TouchTransmitter",
-			"Dragger",
-			"AdvancedDragger"
+			["CloudLocalizationTable"] = "LocalizationTable",
+			["InputObject"] = "Folder",
+			["LodDataEntity"] = "Folder",
+			["LodDataService"] = "Folder",
+			-- ["Path"] = "Folder",
+			["Translator"] = "Folder",
+			["TextChatMessage"] = "Folder",
+			[""] = "Folder", -- * FilteredSelection
+			["AnimationTrack"] = "Folder",
+			["Player"] = "Folder",
+			["PlayerGui"] = "Folder",
+			["PlayerScripts"] = "Folder",
+			["PlayerMouse"] = "Folder",
+			["ScreenshotHud"] = "Folder",
+			["StudioData"] = "Folder",
+			["TextSource"] = "Folder",
+			["TouchTransmitter"] = "Folder",
+			["Dragger"] = "Folder",
+			["AdvancedDragger"] = "Folder"
 		},
 		SavePropsAsAttributesForNotCreatableFixes = false,
 		-- ! Risky
@@ -1958,6 +1930,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 			SaveNonCreatable = "SaveNotCreatable",
 			SavePlayers = "IsolatePlayers",
 			IsolatePlayerGui = "IsolateLocalPlayer",
+			InstancesBlacklist = "IgnoreList",
 		},
 	}
 
@@ -1999,7 +1972,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 					-- Fix.Name = Name
 
 					instancePropertyOverrides[Fix] =
-						{ __SaveSpecific = true, __Children = { instance }, Properties = { Name = Name } }
+						{ __SaveSpecific = true, __Children = { instance }, Properties = { Name = {raw = Name, ValueType = "string"} } }
 				else
 					Fix = Exists
 					table.insert(instancePropertyOverrides[Fix].__Children, instance)
@@ -2076,7 +2049,20 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 			CustomOptions = {}
 		end
 	end
+	
+	local gethiddenproperty_fallback
+	if not OPTIONS.DisableGethiddenpropertyFallback then
+		local UGCValidationService -- = service.UGCValidationService
 
+		gethiddenproperty_fallback = function(instance, propertyName)
+			if not UGCValidationService then
+				UGCValidationService = service.UGCValidationService
+			end
+			return UGCValidationService:GetPropertyValue(instance, propertyName) -- TODO Sadly there's no way to tell whether value is actually nil or the function just couldn't read it (always returns nil for "Class" category properties)
+			-- TODO `category ~= "Class"` causes WeldConstraint Part1Internal to be read as nil and not get unfiltered. Currently, there are no properties of category "Class" that match the following: NotScriptable, can be read with gethiddenproperty_fallback accurately (it always outputs nil for "Class" category, making that check useless anyway) & don't have a NotScriptableFix.
+		end
+	end
+	
 	if OPTIONS.IgnoreDefaultPlayerScripts then
 		-- TODO This is a bad workaround, find a better automatic way
 		-- TODO Look into https://robloxapi.github.io/ref/class/LuaSourceContainer.html#member-isPlayerScript
@@ -2243,18 +2229,21 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		end
 
 		-- Simple loop to find an avbaible file name. Not the most elegant or optimized solution, this is the only repeat loop in the entire file, but it shouldn't impact performance unless you are saving with the same filename 1 million times.
-		local PlaceNameCounter = 1
-		local TempName
-		repeat
-			if PlaceNameCounter == 1 then
-				TempName = placename
-			else
-				TempName = placename .. "(" .. PlaceNameCounter .. ")"
-			end
-			PlaceNameCounter = PlaceNameCounter + 1
-		until not isfile(TempName .. FileType)
-		placename = TempName .. FileType
-
+		if isfile then
+			local PlaceNameCounter = 1
+			local TempName
+			repeat
+				if PlaceNameCounter == 1 then
+					TempName = placename
+				else
+					TempName = placename .. "(" .. PlaceNameCounter .. ")"
+				end
+				PlaceNameCounter = PlaceNameCounter + 1
+			until not isfile(TempName .. FileType)
+			placename = TempName .. FileType
+		else
+			placename ..= FileType
+		end
 		if GLOBAL_ENV[placename] then
 			-- warn("UniversalSynSaveInstance is already saving to this file")
 			return
@@ -2637,8 +2626,8 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 				and (category == "Enum" or string_find(result, "Unable to get property " .. propertyName))
 	end
 
-	local __BREAK = "__BREAK" .. service.HttpService:GenerateGUID(false)
-
+	local __BREAK = string.gsub("__BREAK" .. service.HttpService:GenerateGUID(false), "[^%w_]+", "")
+	
 	local function ReadProperty(instance, property, propertyName, special, category, optional)
 		local raw = __BREAK
 
@@ -2755,6 +2744,77 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		return raw
 	end
 	
+	local function GetInheritedProps(className, useNotSaveableProperties, classesToStopBefore)
+		local prop_list = {}
+		local layer = ClassList[className]
+		while layer do
+			local layer_props
+			if useNotSaveableProperties then
+				layer_props = layer.NotSaveableProperties
+			else
+				layer_props = layer.Properties
+			end
+			table.move(layer_props, 1, #layer_props, #prop_list + 1, prop_list)
+
+			-- for _, prop in layer.Properties do
+			-- 	prop_list[prop_count] = prop -- ? table.clone is needed for case where .Default is modified
+			-- 	prop_count += 1
+			-- end
+			local SuperClass = layer.Superclass
+			layer = ClassList[SuperClass]
+			if classesToStopBefore then
+				if ArrayToDict(classesToStopBefore)[SuperClass] then
+					layer = nil
+				end
+			end
+		end
+		return prop_list
+	end
+	
+	local function GetPropertiesTableFromInstance(instance, CustomClassName) -- for save_specific
+		local ClassName = CustomClassName or instance.ClassName
+		local PropertiesTable = {}
+		local proplist = inherited_properties[ClassName]
+		if not proplist then
+			proplist = GetInheritedProps(ClassName)
+			inherited_properties[ClassName] = proplist
+		end
+		for _, Property in proplist do 
+			local PropertyName = Property.Name
+
+			if IgnoreProperties[PropertyName] then
+				continue
+			end
+
+			local ValueType = Property.ValueType
+
+			if IgnoreSharedStrings and ValueType == "SharedString" then -- ? More info in Options
+				continue
+			end
+
+			local Special, Category, Optional = Property.Special, Property.Category, Property.Optional
+
+			local raw = ReadPropertyFull(instance, Property, PropertyName, Special, Category, Optional)
+
+			if raw == __BREAK then
+				continue
+			end
+
+			if SharedStringOverwrite and ValueType == "BinaryString" then -- TODO: Convert this to table if more types are added
+				ValueType = "SharedString"
+			end
+			
+			if Category == "Enum" then
+				ValueType = "Enum"
+			elseif Category == "Class" then
+				ValueType = "Class"
+			end
+			
+			PropertiesTable[PropertyName] = {raw = raw, ValueType = ValueType, Optional = Optional}
+		end
+		return PropertiesTable
+	end	
+
 	local function ReturnItem(className, instance)
 		return '<Item class="' .. className .. '" referent="' .. GetRef(instance) .. '"><Properties>' -- TODO: Ideally this shouldn't return <Properties> as well as the line below to close it IF  IgnorePropertiesOfNotScriptsOnScriptsMode is Enabled OR If all properties are default (reduces file size by at least 1.4%)
 	end
@@ -2802,8 +2862,8 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 			end
 		end
 		
-		-- Types not added: CSGPropertyData, Color3uint8, Content, FacsReplicationData, QDir (should never be used), QFont, (should never be used) ReplicationPV, SecurityCapabilities (should never be used), UniqueId
-		if ArrayToDict({"string", "bool", "UDim", "UDim2", "BrickColor", "Color3", "Vector2", "Vector3", "CFrame", "NumberSequence", "ColorSequence", "NumberRange", "Rect", "Font", "SystemAddress", "Enum", "int", "int64", "double", "float", "BinaryString", "SharedString", "ContentId", "OptionalCoordinateFrame"})[ValueType] then
+		-- Types not added: CSGPropertyData, Color3uint8, Content, FacsReplicationData, QDir (should never be used), QFont, (should never be used) ReplicationPV, SecurityCapabilities (should never be used)
+		if ArrayToDict({"string", "bool", "UDim", "UDim2", "BrickColor", "Color3", "Vector2", "Vector3", "CFrame", "NumberSequence", "ColorSequence", "NumberRange", "Rect", "Font", "SystemAddress", "Enum", "int", "int64", "double", "float", "BinaryString", "SharedString", "ContentId", "OptionalCoordinateFrame", "UniqueId"})[ValueType] then
 			return(raw)	
 		elseif ArrayToDict({"PhysicalProperties", "TweenInfo", "Faces", "Region3int16", "Ray", "Path2DControlPoint", "Axes"})[ValueType] then
 			return(tostring(raw))
@@ -2832,33 +2892,6 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 				end
 			end
 		end
-	end
-
-	local function GetInheritedProps(className, useNotSaveableProperties, classesToStopBefore)
-		local prop_list = {}
-		local layer = ClassList[className]
-		while layer do
-			local layer_props
-			if useNotSaveableProperties then
-				layer_props = layer.NotSaveableProperties
-			else
-				layer_props = layer.Properties
-			end
-			table.move(layer_props, 1, #layer_props, #prop_list + 1, prop_list)
-
-			-- for _, prop in layer.Properties do
-			-- 	prop_list[prop_count] = prop -- ? table.clone is needed for case where .Default is modified
-			-- 	prop_count += 1
-			-- end
-			local SuperClass = layer.Superclass
-			layer = ClassList[SuperClass]
-			if classesToStopBefore then
-				if ArrayToDict(classesToStopBefore)[SuperClass] then
-					layer = nil
-				end
-			end
-		end
-		return prop_list
 	end
 
 	local CHUNK_LIMIT = 200 * 1024 * 1024 -- string length overflow prevention
@@ -2892,20 +2925,43 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		local Ref = Instance.new(className) -- ! Assuming anything passed here is Creatable
 		local Item = ReturnItem(Ref.ClassName, Ref)
 
-		for propertyName, val in properties do
-			local whitelisted, value, tag
+		for propertyName, data in properties do
+			-- data = {raw, ValueType, Optional}
+			local raw, ValueType, Optional = data.raw, data.ValueType, data.Optional
+			local value, tag
+			if ValueType == "Class" then
+				tag = "ref"
+				if raw then
+					value = GetRef(raw)
+				else
+					value = "null"
+				end
+			elseif ValueType == "Enum" then
+				value, tag = XML_Descriptors.__ENUM(raw)
+			else
+				local Descriptor = XML_Descriptors[ValueType]
 
-			-- TODO: Improve all sort of overrides & exceptions in the code (code below is awful)
-			if "Source" == propertyName then
-				tag = "ProtectedString"
-				value = XML_Descriptors.__PROTECTEDSTRING(val)
-				whitelisted = true
-			elseif "Name" == propertyName then
-				whitelisted = true
-				value, tag = ReturnValueAndTag(val, "string") -- * Doubt ValueType will change
-			end
+				if Descriptor then
+					value, tag = ReturnValueAndTag(raw, ValueType, Descriptor)
+				elseif ValueType == "ProtectedString" then
+					tag = "ProtectedString"
+					value = XML_Descriptors.__PROTECTEDSTRING(raw)
+				elseif Optional then
+					Descriptor = XML_Descriptors[Optional]
 
-			if whitelisted then
+					if Descriptor then
+						if raw == nil then
+							-- * It can be empty, because it's optional
+							-- ? Though why even save it if it's empty considering it's optional
+							continue
+						-- value, tag = "", ValueType
+						else
+							value, tag = ReturnValueAndTag(raw, ValueType, Descriptor)
+						end
+					end
+				end
+			end	
+			if tag then
 				Item ..= ReturnProperty(tag, propertyName, value)
 			end
 		end
@@ -2913,6 +2969,11 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		return Item
 	end
 	local function SaveAttributes(instance, useNotSaveableProperties, Prefix, InstanceToSet, classesToStopBefore)
+		if instance:GetAttribute(__BREAK) then
+			instance:SetAttribute(__BREAK, nil)
+			return
+		end
+		
 		if not InstanceToSet then
 			InstanceToSet = instance
 		end	
@@ -2931,7 +2992,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		end
 		for _, Property in proplist do
 			local PropertyName = Property.Name
-			if IgnoreProperties[PropertyName] or ArrayToDict({"PrivateServerOwnerId", "PrivateServerId", "VIPServerId", "VIPServerOwnerId"})[PropertyName] then
+			if IgnoreProperties[PropertyName] or ArrayToDict({"PrivateServerOwnerId", "PrivateServerId", "VIPServerId", "VIPServerOwnerId", "Attributes", "AttributesReplicate"})[PropertyName] then -- The private server ones cannot be read on the client and produce warnings when read, the attributes properties contain data from SaveAsAttributes.
 				continue
 			end
 
@@ -2950,7 +3011,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 			local value = ReturnAttributeValue(Property, raw)
 			if value ~= nil then
 				local ok, errorm = pcall(function()
-					InstanceToSet:SetAttribute(Prefix .. PropertyName:gsub("[^%w_]+", ""), value) -- Attribute name has the prefix __NotSaveable_ or (insert other prefix)_  then the property name with all non alphanumeric characters removed besides underscores
+					InstanceToSet:SetAttribute(Prefix .. string.gsub(PropertyName, "[^%w_]+", ""), value) -- Attribute name has the prefix __NotSaveable_ or (insert other prefix)_  then the property name with all non alphanumeric characters removed besides underscores
 				end)
 				if not ok and __DEBUG_MODE then
 					__DEBUG_MODE("Failed to set property "..PropertyName.." for SaveAsAttributes. Error Message: "..errorm)
@@ -3056,11 +3117,15 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 							local ClassTags = ClassList[ClassName].Tags
 							if not (ClassTags and ClassTags.NotCreatable) then -- __api_dump_class_not_creatable__ also indicates this
 								-- ! NotCreatableFixes are exceptions to the check above meaning if we don't keep the NotCreatableFixes updated then Instance.new below might start erroring in the future potentially; HOWEVER IsPropertyModified solves this issue and no updates are really needed as NotCreatableFixes is up-to-date as of VERSION-HERE (which is when IPM gets enabled)
-								new_def_inst = Instance.new(ClassName) -- ! Assuming anything that doesn't have NotCreatable is possible to create (therefore no pcall); EXCEPTION NOTED ABOVE
+								local ok, result = pcall(Instance.new, ClassName) -- Some creatable instances (ex: TestService on level 3 exploits) throw errors when created, therefor a pcall is needed
+								if ok then
+									new_def_inst = result
+									default_instance = {}
 
-								default_instance = {}
-
-								default_instances[ClassName] = default_instance
+									default_instances[ClassName] = default_instance
+								elseif __DEBUG_MODE then
+									__DEBUG_MODE("Unable to create default Instance", ClassName)
+								end	
 							elseif __DEBUG_MODE then
 								__DEBUG_MODE("Unable to create default Instance", ClassName)
 							end
@@ -3317,8 +3382,12 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		end
 	end
 
-	local function save_extra(name, hierarchy, customClassName, source)
-		savebuffer[savebuffer_size] = save_specific((customClassName or "Folder"), { Name = name, Source = source })
+	local function save_extra(name, hierarchy, customClassName, Properties)
+		if not Properties then
+			Properties = {}
+		end
+		Properties["Name"] = {raw = name, ValueType = "string"}
+		savebuffer[savebuffer_size] = save_specific((customClassName or "Folder"), Properties)
 		savebuffer_size += 1
 		if hierarchy then
 			save_hierarchy(hierarchy)
@@ -3354,12 +3423,12 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 			if LocalPlayer then
 				if IsolateLocalPlayer then
 					SaveNotCreatable = true
-					save_extra("LocalPlayer", LocalPlayer:GetChildren())
+					save_extra("LocalPlayer", LocalPlayer:GetChildren(), "Folder", GetPropertiesTableFromInstance(LocalPlayer, "Folder"))
 				end
 				if IsolateLocalPlayerCharacter then
 					local LocalPlayerCharacter = LocalPlayer.Character
 					if LocalPlayerCharacter then
-						save_extra("LocalPlayer Character", LocalPlayerCharacter:GetChildren(), "Model")
+						save_extra("LocalPlayer Character", LocalPlayerCharacter:GetChildren(), "Model", GetPropertiesTableFromInstance(LocalPlayerCharacter))
 					end
 				end
 			end
@@ -3367,12 +3436,12 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 
 		if IsolateStarterPlayer then
 			-- SaveNotCreatable = true -- TODO: Enable if StarterPlayerScripts or StarterCharacterScripts stop showing up in isolated folder in Studio
-			save_extra("StarterPlayer", service.StarterPlayer:GetChildren())
+			save_extra("StarterPlayer", service.StarterPlayer:GetChildren(), "Folder", GetPropertiesTableFromInstance(service.StarterPlayer, "Folder"))
 		end
 
 		if IsolatePlayers then
 			SaveNotCreatable = true
-			save_extra("Players", service.Players:GetChildren())
+			save_extra("Players", service.Players:GetChildren(), "Folder", GetPropertiesTableFromInstance(service.Players, "Folder"))
 		end
 
 		if NilInstances and global_container.getnilinstances then
@@ -3418,7 +3487,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 				"README",
 				nil,
 				"Script",
-				"--[[\n"
+				{Source = {raw = "--[[\n"
 					.. (#RecoveredScripts ~= 0 and "\t\tIMPORTANT: Original Source of these Scripts was Recovered: " .. service.HttpService:JSONEncode(
 						RecoveredScripts
 					) .. "\n" or "")
@@ -3468,7 +3537,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 					.. version()
 					.. " Executor: "
 					.. (identify_executor and table.concat({ identify_executor() }, " ") or "Unknown")
-					.. "\n]]"
+					.. "\n]]", ValueType = "ProtectedString"}}
 			)
 		end
 		do
@@ -3662,14 +3731,14 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 			if global_container.protectgui then
 				StatusGui.Name = randomString()
 				global_container.protectgui(StatusGui)
-				StatusGui.Parent = game:GetService("CoreGui")
+				StatusGui.Parent = service.CoreGui
 			else
-				local RobloxGui = game:GetService("CoreGui"):FindFirstChild("RobloxGui")
+				local RobloxGui = service.CoreGui:FindFirstChild("RobloxGui")
 				if RobloxGui then
 					StatusGui.Parent = RobloxGui
 				else
 					StatusGui.Name = randomString()
-					StatusGui.Parent = game:GetService("CoreGui")
+					StatusGui.Parent = service.CoreGui
 				end
 			end
 		end
@@ -3712,6 +3781,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 			local DataModelProperties = Instance.new("Configuration")
 			DataModelProperties.Name = "DataModelProperties"
 			SaveAttributes(game, true, "__NotSaveable_", DataModelProperties)
+			DataModelProperties:SetAttribute(__BREAK, "")
 			DataModelProperties.Parent = game
 			table.insert(ToSaveList, DataModelProperties)
 		end
