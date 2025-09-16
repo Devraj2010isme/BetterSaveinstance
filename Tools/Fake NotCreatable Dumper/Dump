@@ -1,4 +1,4 @@
-Varies per executor; Tested on Codex
+Varies per executor; Tested on Potassium
 
 Annotation {Fake Creatable}
 
@@ -6,15 +6,7 @@ AuroraScript {Fake Creatable}
 
 Breakpoint {Fake Creatable}
 
-CustomLog {Fake Creatable}
-
 ExplorerFilter {Fake Creatable}
-
-InputAction {Fake Creatable}
-
-InputBinding {Fake Creatable}
-
-InputContext {Fake Creatable}
 
 InternalSyncItem {Fake Creatable}
 
@@ -46,7 +38,4 @@ StudioAttachment {Fake Creatable}
 
 StudioCallout {Fake Creatable}
 
-VideoDisplay {Fake Creatable}
-
 WorkspaceAnnotation {Fake Creatable}
-

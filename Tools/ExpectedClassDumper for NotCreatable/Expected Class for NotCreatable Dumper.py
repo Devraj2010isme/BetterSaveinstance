@@ -1,3 +1,4 @@
+# Dumps all "Class" category properties where the expected class isn't Instance
 import requests, os, re
 
 

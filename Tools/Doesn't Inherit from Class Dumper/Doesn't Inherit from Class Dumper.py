@@ -1,3 +1,6 @@
+# Dumps instances that don't inherit from Instance (objects that arem't instances)
+# The class to check from can be changed
+
 import requests
 import os
 import re

@@ -1,3 +1,4 @@
+# Dumps properties that are saveable but not loadable, loadable but not saveable, or are NotCreatable but have properties with default values
 import requests
 import os
 import re

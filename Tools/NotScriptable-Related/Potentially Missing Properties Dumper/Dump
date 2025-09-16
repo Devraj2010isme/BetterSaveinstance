@@ -1,4 +1,4 @@
-Varies per executor; Tested on Codex
+Varies per executor; Tested on Potassium
 
 DebuggerBreakpoint.line {NotCreatable Class} 
 
@@ -8,7 +8,6 @@ BasePart.Color3uint8  Unable to get property Color3uint8, type Color3uint8
 
 EditableImage.ImageData {NotCreatable Class} 
 
-Instance.UniqueId  Unable to get property UniqueId, type UniqueId
 Instance.HistoryId  Unable to get property HistoryId, type UniqueId
 
 MetaBreakpointContext.ContextDataInternal {NotCreatable Class} 
@@ -18,4 +17,6 @@ ScriptDebugger.CoreScriptIdentifier {NotCreatable Class}
 
 Model.WorldPivotData  Unable to get property WorldPivotData, type OptionalCoordinateFrame
 
-GoogleAnalyticsConfiguration.gaID {NotCreatable Class} 
+PartOperation.SolidMeshHolder  Unable to get property SolidMeshHolder, type NetAssetRef
+
+AuroraScript.AuroraScriptBindingsSerialize {NotCreatable Class} 
