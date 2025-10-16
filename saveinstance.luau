@@ -906,6 +906,7 @@ XML_Descriptors = {
 			Elasticity
 			FrictionWeight
 			ElasticityWeight
+			AcousticAbsorption
 
 			The value of each component is represented by the text content formatted as a 32-bit floating point number (see float)
 		]]
@@ -913,7 +914,7 @@ XML_Descriptors = {
 		local CustomPhysics = "<CustomPhysics>" .. XML_Descriptors.bool(raw and true or false) .. "</CustomPhysics>"
 
 		return raw
-				and CustomPhysics .. "<Density>" .. raw.Density .. "</Density><Friction>" .. raw.Friction .. "</Friction><Elasticity>" .. raw.Elasticity .. "</Elasticity><FrictionWeight>" .. raw.FrictionWeight .. "</FrictionWeight><ElasticityWeight>" .. raw.ElasticityWeight .. "</ElasticityWeight>"
+				and CustomPhysics .. "<Density>" .. raw.Density .. "</Density><Friction>" .. raw.Friction .. "</Friction><Elasticity>" .. raw.Elasticity .. "</Elasticity><FrictionWeight>" .. raw.FrictionWeight .. "</FrictionWeight><ElasticityWeight>" .. raw.ElasticityWeight .. "</ElasticityWeight><AcousticAbsorption>".. raw.AcousticAbsorption .. "</AcousticAbsorption>"
 			or CustomPhysics
 	end,
 	-- ProtectedString = function(raw) return tostring(raw), "ProtectedString" end,
@@ -1128,6 +1129,7 @@ for descriptorName, redirectName in
 		float = "__NORMALIZE_NUMBER",
 		int = "__NORMALIZE_NUMBER",
 		int64 = "__NORMALIZE_NUMBER",
+		NetAssetRef = "SharedString",
 	}
 do
 	XML_Descriptors[descriptorName] = XML_Descriptors[redirectName]
@@ -1640,7 +1642,7 @@ All options are case insensitive.
 - AntiIdle: `boolean`
   - Prevents the 20-minute-Idle Kick.
   - Default: true
-- Anonymous: `boolean or table`
+- Anonymous: `boolean | table`
   - Cleans the file of any info related to your account like: Name, UserId.
   - This is useful for some games that might store that info in GUIs or other Instances.
   - Might potentially mess up parts of strings that contain characters that match your Name or parts of numbers that match your UserId.
@@ -1653,7 +1655,7 @@ All options are case insensitive.
 - Callback: `function`
   - If set, the serialized data will be sent to the callback function instead of to file.
   - Default: false
-- mode: `string or table`
+- mode: `string | table`
   - Controls what instances to save.
   - Valid Modes:
     - optimized: Saves a hardcoded list of services, best for general use.
@@ -1774,7 +1776,7 @@ All options are case insensitive.
 - NotCreatableFixes: `table<Instance.ClassName>`
   - The instances to convert using SaveNotCreatable
   - {"Player"} is the same as {Player = "Folder"}; Format like {SpawnLocation = "Part"} is only to be used when SpawnLocation inherits from "Part" AND "Part" is Creatable.
-  - Default: { "", "AnimationTrack", "Player", "PlayerGui", "PlayerScripts", "PlayerMouse", "ScreenshotHud", "StudioData", "TextSource", "TouchTransmitter", "Dragger", "AdvancedDragger" }
+  - Default: {["CloudLocalizationTable"] = "LocalizationTable", ["InputObject"] = "Folder", ["LodDataEntity"] = "Folder", ["LodDataService"] = "Folder",["Translator"] = "Folder", ["TextChatMessage"] = "Folder", [""] = "Folder", ["AnimationTrack"] = "Folder", ["Player"] = "Folder", ["PlayerGui"] = "Folder", ["PlayerScripts"] = "Folder", ["PlayerMouse"] = "Folder", ["ScreenshotHud"] = "Folder", ["StudioData"] = "Folder", ["TextSource"] = "Folder", ["TouchTransmitter"] = "Folder", ["Dragger"] = "Folder", ["AdvancedDragger"] = "Folder"}
  - SavePropsAsAttributesForNotCreatableFixes
    - Converts CanSave/CanLoad properties of instances with a NotCreatableFix which can't be saved otherwise into attributes.
    - Enables SaveNotCreatable
@@ -2064,21 +2066,25 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 	end
 	
 	if OPTIONS.IgnoreDefaultPlayerScripts then
-		-- TODO This is a bad workaround, find a better automatic way
-		-- TODO Look into https://robloxapi.github.io/ref/class/LuaSourceContainer.html#member-isPlayerScript
+		-- TODO This is a bad workaround, find a better automatic way. (LuaSourceContainer.isPlayerScript doesn't work, as it is always false)
 		local DecompileIgnore = OPTIONS.DecompileIgnore
-
-		local Path = service.StarterPlayer:FindFirstChild("StarterPlayerScripts")
-		local Exclude = { ModuleScript = { "PlayerModule" }, LocalScript = { "RbxCharacterSounds" } }
-		if Path then
-			for _, className in Exclude do
-				for _, name in className do
-					local Found = Path:FindFirstChild(name)
-					if Found then
-						table.insert(DecompileIgnore, Found)
+		local function IgnoreScripts(Path, Exclude)
+			if Path then
+				for _, className in Exclude do
+					for _, name in className do
+						local Found = Path:FindFirstChild(name)
+						if Found then
+							table.insert(DecompileIgnore, Found)
+						end
 					end
 				end
 			end
+		end
+		local Exclude = { ModuleScript = { "PlayerModule" }, LocalScript = { "RbxCharacterSounds", "PlayerScriptsLoader" } }
+		IgnoreScripts(service.StarterPlayer:FindFirstChild("StarterPlayerScripts"), Exclude)
+		local LocalPlayer = service.Players.LocalPlayer
+		if LocalPlayer then
+			IgnoreScripts(LocalPlayer:FindFirstChild("PlayerScripts"), Exclude)
 		end
 	end
 
@@ -2863,7 +2869,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		end
 		
 		-- Types not added: CSGPropertyData, Color3uint8, Content, FacsReplicationData, QDir (should never be used), QFont, (should never be used) ReplicationPV, SecurityCapabilities (should never be used)
-		if ArrayToDict({"string", "bool", "UDim", "UDim2", "BrickColor", "Color3", "Vector2", "Vector3", "CFrame", "NumberSequence", "ColorSequence", "NumberRange", "Rect", "Font", "SystemAddress", "Enum", "int", "int64", "double", "float", "BinaryString", "SharedString", "ContentId", "OptionalCoordinateFrame", "UniqueId"})[ValueType] then
+		if ArrayToDict({"string", "bool", "UDim", "UDim2", "BrickColor", "Color3", "Vector2", "Vector3", "CFrame", "NumberSequence", "ColorSequence", "NumberRange", "Rect", "Font", "SystemAddress", "Enum", "int", "int64", "double", "float", "BinaryString", "SharedString", "ContentId", "OptionalCoordinateFrame", "UniqueId", "NetAssetRef"})[ValueType] then
 			return(raw)	
 		elseif ArrayToDict({"PhysicalProperties", "TweenInfo", "Faces", "Region3int16", "Ray", "Path2DControlPoint", "Axes"})[ValueType] then
 			return(tostring(raw))
