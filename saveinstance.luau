@@ -31,13 +31,50 @@ local function ArrayToDict(t, hydridMode, valueOverride, typeStrict)
 	return tmp
 end
 
+local service = setmetatable({}, {
+	__index = function(self, serviceName)
+		local o, s = pcall(Instance.new, serviceName)
+		local Service = o and s
+			or game:GetService(serviceName)
+			or settings():GetService(serviceName)
+			or UserSettings():GetService(serviceName)
+
+		-- if cloneref then
+		-- 	Service = cloneref(Service)
+		-- end
+		if Service then
+			self[serviceName] = Service
+		end
+		return Service
+	end,
+})
+
+local HttpGet
+do
+	local ExploitHttpGetWorks, _ = pcall(function()
+		return game:HttpGet("https://raw.githubusercontent.com/Reselim/Base64/master/Base64.lua", true)
+	end)
+	 
+	if ExploitHttpGetWorks then
+		HttpGet = function(URL, Async)
+			return game:HttpGet(URL, Async)
+		end
+	elseif service.HttpService.HttpEnabled then
+		HttpGet = function(URL)
+			return service.HttpService:GetAsync(URL)
+		end
+	else
+		warn("Unable to save, executor HttpGet is unavailable and HttpService cannot be used (http is not enabled)")
+		return
+	end
+end
 local global_container
 do
 	local filename = "UniversalMethodFinder"
 
 	local finder
 	finder, global_container = loadstring(
-		game:HttpGet("https://raw.githubusercontent.com/luau/SomeHub/main/" .. filename .. ".luau", true),
+		HttpGet("https://raw.githubusercontent.com/luau/SomeHub/main/" .. filename .. ".luau", true),
 		filename
 	)()
 
@@ -74,24 +111,6 @@ local isfile = isfile
 local getscriptbytecode = global_container.getscriptbytecode -- * A lot of assumptions are made based on whether this function is defined or not. So in certain edge cases, like if the executor defines "decompile" or "getscripthash" function yet doesn't define this function there might be loss of functionality of the saveinstance. Although that would be very rare and weird
 local base64encode = global_container.base64encode
 local sha384
-
-local service = setmetatable({}, {
-	__index = function(self, serviceName)
-		local o, s = pcall(Instance.new, serviceName)
-		local Service = o and s
-			or game:GetService(serviceName)
-			or settings():GetService(serviceName)
-			or UserSettings():GetService(serviceName)
-
-		-- if cloneref then
-		-- 	Service = cloneref(Service)
-		-- end
-		if Service then
-			self[serviceName] = Service
-		end
-		return Service
-	end,
-})
 
 do -- * Load Region of Déjà Vu
 	if gethiddenproperty and EXECUTOR_NAME ~= "Velocity" then -- Velocity fails due to enums not being supported, but BinaryString and SharedString still are (handled later)
@@ -163,7 +182,7 @@ do -- * Load Region of Déjà Vu
 		local reselim_base64encode
 		pcall(function()
 			local b64_enc_buf = loadstring(
-				game:HttpGet("https://raw.githubusercontent.com/Reselim/Base64/master/Base64.lua", true),
+				HttpGet("https://raw.githubusercontent.com/Reselim/Base64/master/Base64.lua", true),
 				"Base64"
 			)().encode
 			reselim_base64encode = function(raw)
@@ -198,7 +217,7 @@ do -- * Load Region of Déjà Vu
 		local hashlib_sha384
 		pcall(function()
 			hashlib_sha384 = loadstring(
-				game:HttpGet("https://raw.githubusercontent.com/luau/SomeHub/main/" .. filename .. ".luau", true),
+				HttpGet("https://raw.githubusercontent.com/luau/SomeHub/main/" .. filename .. ".luau", true),
 				filename
 			)()(4544052033).sha384
 		end)
@@ -590,11 +609,11 @@ Binary_Descriptors = {
 	["PhysicalProperties"] = function(raw) -- ? Not sure yet (https://github.com/RobloxAPI/spec/blob/master/properties/drafts/AttributesSerializeFull.md#physicalproperties)
 		local len = 1
 		if raw then
-			len += 20
+			len += 24
 		end
 		local b = buffer.create(len)
 
-		buffer.writeu8(b, 0, raw and 1 or 0)
+		buffer.writeu8(b, 0, raw and 3 or 0)
 
 		if raw then
 			buffer.writef32(b, 1, raw.Density)
@@ -602,6 +621,7 @@ Binary_Descriptors = {
 			buffer.writef32(b, 9, raw.Elasticity)
 			buffer.writef32(b, 13, raw.FrictionWeight)
 			buffer.writef32(b, 17, raw.ElasticityWeight)
+			buffer.writef32(b, 21, raw.AcousticAbsorption)
 		end
 
 		return b, len
@@ -875,6 +895,7 @@ XML_Descriptors = {
 				.. (EmptyStyle and "" or raw.Style.Name) -- Weird but this field accepts .Name of enum instead..
 				.. "</Style>"
 		end,
+	NetAssetRef = nil,
 	NumberRange = function(raw) -- tostring(raw) also works
 		-- The value is the text content, formatted as a space-separated list of floating point numbers.
 		local __NORMALIZE_RANGE = XML_Descriptors.__NORMALIZE_RANGE
@@ -1122,6 +1143,7 @@ end
 
 for descriptorName, redirectName in
 	{
+		NetAssetRef = "SharedString",
 		NumberSequence = "__SEQUENCE",
 		Vector2int16 = "Vector2",
 		Vector3int16 = "Vector3",
@@ -1129,7 +1151,6 @@ for descriptorName, redirectName in
 		float = "__NORMALIZE_NUMBER",
 		int = "__NORMALIZE_NUMBER",
 		int64 = "__NORMALIZE_NUMBER",
-		NetAssetRef = "SharedString",
 	}
 do
 	XML_Descriptors[descriptorName] = XML_Descriptors[redirectName]
@@ -1431,7 +1452,7 @@ do
 			local matching_versions, is_matched = {}
 
 			-- * https://setup.rbxcdn.com/versionQTStudio seems to be a bit behind DeployHistory.txt
-			local DeployHistory = string.split(game:HttpGet("https://setup.rbxcdn.com/DeployHistory.txt", true), "\n")
+			local DeployHistory = string.split(HttpGet("https://setup.rbxcdn.com/DeployHistory.txt", true), "\n")
 			for i = #DeployHistory, 1, -1 do
 				local line = DeployHistory[i]
 
@@ -1452,8 +1473,7 @@ do
 
 			for version_hash in matching_versions do
 				ok, result = pcall(
-					game.HttpGet,
-					game,
+					HttpGet,
 					"https://setup.rbxcdn.com/" .. version_hash .. "-Full-API-Dump.json",
 					true
 				)
@@ -1465,8 +1485,9 @@ do
 					end
 				end
 			end
-
-			writefile(CLIENT_VERSION_str, API_Dump)
+			if writefile then
+				writefile(CLIENT_VERSION_str, API_Dump)
+			end
 		end)
 
 		if not ok or not API_Dump then
@@ -1474,7 +1495,7 @@ do
 			warn("[DEBUG]", err)
 			API_Dump = service.HttpService:JSONEncode(
 				service.HttpService:JSONDecode(
-					game:HttpGet(
+					HttpGet(
 						"https://raw.githubusercontent.com/MaximumADHD/Roblox-Client-Tracker/roblox/Mini-API-Dump.json",
 						true
 					)
@@ -1618,7 +1639,7 @@ end
 local GLOBAL_ENV = getgenv and getgenv() or _G or shared
 
 --[=[
-# Options Documentation
+## Options Documentation
 > [!NOTE]
 All options are case insensitive.
 - __DEBUG_MODE: `boolean`
@@ -1654,6 +1675,10 @@ All options are case insensitive.
   - Default: true
 - Callback: `function`
   - If set, the serialized data will be sent to the callback function instead of to file.
+  - Parameters:
+    - totalstr: The serialized data (`string`)
+    - chucks: An internal table used by the saveinstance (`table`)
+    - totalsize: The size of totalstr in bytes (`integer`)
   - Default: false
 - mode: `string | table`
   - Controls what instances to save.
@@ -1919,7 +1944,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		SavePropsAsAttributesForNotCreatableFixes = false,
 		-- ! Risky
 
-		IgnoreSharedStrings = not ArrayToDict({ "Wave", "Zenith", "Swift", "Potassium", "Volcano", "Velocity"})[EXECUTOR_NAME],
+		IgnoreSharedStrings = not ArrayToDict({ "Wave", "Zenith", "Swift", "Potassium", "Volcano", "Velocity", "Codex"})[EXECUTOR_NAME],
 		SharedStringOverwrite = false,
 		TreatUnionsAsParts = ArrayToDict({ "Solara", "Xeno", "WRD", "Zorara", "JJSploit x Xeno" })[EXECUTOR_NAME] or false,
 		AlternativeWritefile = not ArrayToDict({ "WRD", "Xeno", "Zorara", "JJSploit x Xeno" })[EXECUTOR_NAME],
@@ -2052,6 +2077,12 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		end
 	end
 	
+	if not writefile and not OPTIONS.Callback then
+		warn('Function "writefile" not available. Use the option "Callback" for use without writefile.')
+		GLOBAL_ENV.USSI = nil
+		return
+	end
+	
 	local gethiddenproperty_fallback
 	if not OPTIONS.DisableGethiddenpropertyFallback then
 		local UGCValidationService -- = service.UGCValidationService
@@ -2101,17 +2132,21 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 	local old_warn
 	
 	if Crashlog and not old_warn then
-		__DEBUG_MODE = true
-		local CRASHLOG_ID = service.HttpService:GenerateGUID(false)
-		writefile("CRASHLOG_"..CRASHLOG_ID, "BetterSaveinstance crashlog (id:"..CRASHLOG_ID..", placeid:"..tostring(game.PlaceId)..") below")
-		Crashlog = function(text)
-			appendfile("CRASHLOG_"..CRASHLOG_ID, "\n ["..tostring(DateTime.now().UnixTimestampMillis).."] "..text)
-		end
-		old_warn = warn
-		function warn(...)
-			old_warn(...)
-			local text = table.concat({...}, " ")
-			Crashlog(text)
+		if writefile and appendfile then
+			__DEBUG_MODE = true
+			local CRASHLOG_ID = service.HttpService:GenerateGUID(false)
+			writefile("CRASHLOG_"..CRASHLOG_ID, "BetterSaveinstance crashlog (id:"..CRASHLOG_ID..", placeid:"..tostring(game.PlaceId)..") below")
+			Crashlog = function(text)
+				appendfile("CRASHLOG_"..CRASHLOG_ID, "\n ["..tostring(DateTime.now().UnixTimestampMillis).."] "..text)
+			end
+			old_warn = warn
+			function warn(...)
+				old_warn(...)
+				local text = table.concat({...}, " ")
+				Crashlog(text)
+			end
+		else
+			warn("The functions writefile and appendfile are required for option Crashlog")
 		end
 	end
 
@@ -2499,7 +2534,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		if (decompile == nil and OPTIONS.decomptype == "") or OPTIONS.decomptype == "custom" then
 			if __DEBUG_MODE then __DEBUG_MODE("Attempting to load Konstant Decompiler. If there is an error/crash after this, set the option decomptype to any string other than custom") end
 			local url = "https://raw.githubusercontent.com/Devraj2010isme/BetterSaveinstance/refs/heads/main/Dependencies/Konstant%20V2.1.luau"
-			local konstant = loadstring(game:HttpGet(url, true))()
+			local konstant = loadstring(HttpGet(url, true))()
 			GLOBAL_ENV.decompile = konstant.decompile
 			if __DEBUG_MODE then __DEBUG_MODE("Konstant Decompiler loaded") end
 		end
@@ -3261,7 +3296,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 
 													local ok, source = pcall(function()
 														-- Credits @halffalse
-														return game:HttpGet(
+														return HttpGet(
 															"https://assetdelivery.roproxy.com/v1/asset/?" .. asset
 														)
 													end)
@@ -3413,7 +3448,6 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 				header ..= '<Meta name="ExplicitAutoJoints">true</Meta>'
 			end
 
-			writefile(placename, header) -- TODO This is sort of useless if writefile will be used at the end (like if AlternativeWritefile and Callback are unused)
 		end
 
 		-- TODO Find a better solution for this
@@ -3593,7 +3627,8 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 				local SEGMENT_SIZE = 4145728 -- Celery has an arbitrary savefile/appendfile size limit of ~4MB for reasons unknown. This is a workaround to save the file in segments.
 
 				local totallen, currentlen = math.ceil(totalsize / SEGMENT_SIZE), 1
-
+				
+				writefile(placename, header)
 				for _, chunk in chunks do
 					local length = math.ceil(chunk.size / SEGMENT_SIZE)
 					for i = 1, length do

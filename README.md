@@ -44,6 +44,7 @@ synsaveinstance(Options)
 - Support for custom modes
   - Allows for providing a table of service names for the mode option
   - Works the same as optimized mode, but allows for the changing that hardcoded table
+- Support for executors with no custom functions (including base roblox) 
 - More small changes and fixes
    - Option IsolateLocalPlayerCharacter now isolates as a model instead of a folder
    - NotCreatableFixes for Dragger and AdvancedDragger, as they prevent the file from opening
@@ -98,6 +99,10 @@ All options are case insensitive.
   - Default: true
 - Callback: `function`
   - If set, the serialized data will be sent to the callback function instead of to file.
+  - Parameters:
+    - totalstr: The serialized data (`string`)
+    - chucks: An internal table used by the saveinstance (`table`)
+    - totalsize: The size of totalstr in bytes (`integer`)
   - Default: false
 - mode: `string | table`
   - Controls what instances to save.
