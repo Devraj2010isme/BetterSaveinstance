@@ -52,7 +52,7 @@ local service = setmetatable({}, {
 local HttpGet
 do
 	local ExploitHttpGetWorks, _ = pcall(function()
-		return game:HttpGet("https://raw.githubusercontent.com/Reselim/Base64/master/Base64.lua", true)
+		return game:HttpGet("https://raw.githubusercontent.com/Devraj2010isme/BetterSaveinstance/refs/heads/main/Dependencies/HttpGetTest", true)
 	end)
 	 
 	if ExploitHttpGetWorks then
@@ -89,7 +89,7 @@ do
 		-- getcon = 'string.find(...,"get",nil,true) and (string.find(...,"conn",nil,true) or string.find(...,"sig",nil,true)) and string.sub(...,#(...))=="s"',
 		getnilinstances = 'string.find(...,"nil",nil,true) and string.find(...,"get",nil,true) and string.sub(...,#...) == "s"', -- ! Could match some unwanted stuff
 		getscriptbytecode = 'string.find(...,"get",nil,true) and string.find(...,"bytecode",nil,true)', --  or string.find(...,"dump",nil,true) and string.find(...,"string",nil,true) due to Fluxus (dumpstring returns a function)
-		hash = 'local a={...}local b=a[1]local function c(a,b)return string.find(a,b,nil,true)end;return c(b,"hash")and c(string.lower(tostring(a[2])),"crypt")',
+		--hash = 'local a={...}local b=a[1]local function c(a,b)return string.find(a,b,nil,true)end;return c(b,"hash")and c(string.lower(tostring(a[2])),"crypt")',
 		protectgui = 'string.find(...,"protect",nil,true) and string.find(...,"ui",nil,true) and not string.find(...,"un",nil,true)',
 		setthreadidentity = 'string.find(...,"identity",nil,true) and string.find(...,"set",nil,true)',
 	}, true, 10)
@@ -110,7 +110,6 @@ local isfile = isfile
 
 local getscriptbytecode = global_container.getscriptbytecode -- * A lot of assumptions are made based on whether this function is defined or not. So in certain edge cases, like if the executor defines "decompile" or "getscripthash" function yet doesn't define this function there might be loss of functionality of the saveinstance. Although that would be very rare and weird
 local base64encode = global_container.base64encode
-local sha384
 
 do -- * Load Region of Déjà Vu
 	if gethiddenproperty and EXECUTOR_NAME ~= "Velocity" then -- Velocity fails due to enums not being supported, but BinaryString and SharedString still are (handled later)
@@ -178,60 +177,28 @@ do -- * Load Region of Déjà Vu
 			table.freeze(bit32)
 		end
 
-		-- Credits @Reselim
-		local reselim_base64encode
+		-- Credits @daily3014 & @XoifaiI
+		local rbxcrypt_base64encode
 		pcall(function()
 			local b64_enc_buf = loadstring(
-				HttpGet("https://raw.githubusercontent.com/Reselim/Base64/master/Base64.lua", true),
+				HttpGet("https://raw.githubusercontent.com/daily3014/rbx-cryptography/refs/heads/main/src/Utilities/Base64.luau", true),
 				"Base64"
-			)().encode
-			reselim_base64encode = function(raw)
+			)().Encode
+			rbxcrypt_base64encode = function(raw)
 				return buffer.tostring(b64_enc_buf(buffer.fromstring(raw)))
 			end
 		end)
 
 		-- * Tests if base64encode exists and works properly then benchmark it
 		if base64encode and base64encode("\1\0\0\0\1") == "AQAAAAE=" then
-			if reselim_base64encode then
-				base64encode = benchmark(base64encode, reselim_base64encode, test_str)
+			if rbxcrypt_base64encode then
+				base64encode = benchmark(base64encode, rbxcrypt_base64encode, test_str)
 			end
 		else
-			base64encode = reselim_base64encode
+			base64encode = rbxcrypt_base64encode
 		end
 
 		assert(base64encode, "base64encode not found")
-	end
-
-	do
-		local hash = global_container.hash
-
-		if hash then
-			sha384 = function(data)
-				return hash(data, "sha384")
-			end
-		end
-
-		local filename = "RequireOnlineModule"
-
-		-- Credits @boatbomber
-		local hashlib_sha384
-		pcall(function()
-			hashlib_sha384 = loadstring(
-				HttpGet("https://raw.githubusercontent.com/luau/SomeHub/main/" .. filename .. ".luau", true),
-				filename
-			)()(4544052033).sha384
-		end)
-
-		-- * Tests if sha384 exists then benchmark it
-		if hashlib_sha384 then
-			if sha384 then
-				sha384 = benchmark(sha384, hashlib_sha384, test_str)
-			else
-				sha384 = hashlib_sha384
-			end
-		end
-
-		assert(sha384, "sha384 hash function not found")
 	end
 end
 
@@ -241,7 +208,7 @@ local SharedString_identifiers = setmetatable({
 	-- TODO: worst case, add fallback to str randomizer once numbers run out : )
 }, {
 	__index = function(self, str)
-		local Identifier = base64encode(tostring(self.identifier)) -- tostring is only needed for built-in base64encode, Reselim's doesn't need it as buffers autoconvert
+		local Identifier = base64encode(tostring(self.identifier)) -- tostring is only needed for built-in base64encode, Luau base64 implementations don't need it as buffers autoconvert
 		self.identifier += 1
 
 		self[str] = Identifier -- ? The value of the md5 attribute is a Base64-encoded key. <SharedString> type elements use this key to refer to the value of the string. The value is the text content, which is Base64-encoded. Historically, the key was the MD5 hash of the string value. However, this is not required; the key can be any value that will uniquely identify the shared string. Roblox currently uses BLAKE2b truncated to 16 bytes..
@@ -313,7 +280,14 @@ local function gsubCaseInsensitive(input, search, replacement) -- * Credits to f
 	return table.concat(subStrings, replacement)
 end
 
-local CLIENT_VERSION = tonumber(string.split(version(), ".")[2])
+local version = version
+if not version then
+	version = function()
+		return "UNKNOWN"
+	end
+end
+
+local CLIENT_VERSION = tonumber(string.split(version(), ".")[2]) or 9e9
 
 local attr_Type_IDs = {
 	string = 0x02,
@@ -1114,6 +1088,7 @@ do
 			LegacySound = 2 ^ 33, ----------  33 (0x21)
 			Players = 2 ^ 34, --------------  34 (0x22)
 			CapabilityControl = 2 ^ 35, ----  35 (0x23)
+			RemoteCommand = 2 ^ 59, --------  59 (0x3b)
 			InternalTest = 2 ^ 60, ---------  60 (0x3c), Related to TestingGameScript
 			PluginOrOpenCloud = 2 ^ 61, ----  61 (0x3d)
 			Assistant = 2 ^ 62, ------------  62 (0x3e)
@@ -1491,7 +1466,7 @@ do
 		end)
 
 		if not ok or not API_Dump then
-			warn("[DEBUG] Failed to get " .. version() .. " API Dump, trying latest..")
+			warn("[DEBUG] Failed to get " .. version() .. " version API Dump, trying latest..")
 			warn("[DEBUG]", err)
 			API_Dump = service.HttpService:JSONEncode(
 				service.HttpService:JSONDecode(
@@ -2099,23 +2074,35 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 	if OPTIONS.IgnoreDefaultPlayerScripts then
 		-- TODO This is a bad workaround, find a better automatic way. (LuaSourceContainer.isPlayerScript doesn't work, as it is always false)
 		local DecompileIgnore = OPTIONS.DecompileIgnore
-		local function IgnoreScripts(Path, Exclude)
-			if Path then
-				for _, className in Exclude do
-					for _, name in className do
-						local Found = Path:FindFirstChild(name)
-						if Found then
-							table.insert(DecompileIgnore, Found)
+		local default_scripts = ArrayToDict({
+			ModuleScript = { "PlayerModule" },
+			LocalScript = {
+				"BubbleChat",
+				"ChatScript",
+				"PlayerScriptsLoader",
+				"RbxCharacterSounds",
+			},
+		}, true)
+
+		local function ignorePath(path)
+			if path then
+				for _, child in path:GetChildren() do
+					local class_match = default_scripts[child.ClassName]
+					if class_match then
+						local name_match = class_match[child.Name]
+						if name_match then
+							table.insert(DecompileIgnore, child)
 						end
 					end
 				end
 			end
 		end
-		local Exclude = { ModuleScript = { "PlayerModule" }, LocalScript = { "RbxCharacterSounds", "PlayerScriptsLoader" } }
-		IgnoreScripts(service.StarterPlayer:FindFirstChild("StarterPlayerScripts"), Exclude)
+
+		ignorePath(service.StarterPlayer:FindFirstChild("StarterPlayerScripts"))
+
 		local LocalPlayer = service.Players.LocalPlayer
 		if LocalPlayer then
-			IgnoreScripts(LocalPlayer:FindFirstChild("PlayerScripts"), Exclude)
+			ignorePath(LocalPlayer:FindFirstChild("PlayerScripts"))
 		end
 	end
 
@@ -2570,9 +2557,10 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 			ldecompile = function(script)
 				if Crashlog then Crashlog("  Decompiling "..script:GetFullName()) end
 				-- local name = scr.ClassName .. scr.Name
-				local hashed_bytecode
+				local bytecode
 				if ScriptCache then
-					local s, bytecode = getbytecode(script)
+					local s
+					s, bytecode = getbytecode(script)
 					local cached
 
 					if s then
@@ -2580,8 +2568,9 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 							if Crashlog then Crashlog("  Script "..script:GetFullName().." is empty") end
 							return "-- The Script is Empty"
 						end
-						hashed_bytecode = sha384(bytecode)
-						cached = ldeccache[hashed_bytecode]
+						cached = ldeccache[bytecode]
+					else
+						bytecode = nil
 					end
 
 					if cached then
@@ -2611,8 +2600,8 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 					output = "--[[ Failed to decompile. Reason:\n" .. (result or "") .. "\n]]"
 				end
 
-				if ScriptCache and hashed_bytecode then -- TODO there might(?) be an edgecase where it manages to decompile (built-in) even though getscriptbytecode failed, and the output won't get cached
-					ldeccache[hashed_bytecode] = output -- ? Should we cache even if it timed out?
+				if ScriptCache and bytecode then -- TODO there might(?) be an edgecase where it manages to decompile (built-in) even though getscriptbytecode failed, and the output won't get cached
+					ldeccache[bytecode] = output -- ? Should we cache even if it timed out?
 					if __DEBUG_MODE then
 						__DEBUG_MODE("Cached", script:GetFullName())
 					end
@@ -3158,14 +3147,15 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 							local ClassTags = ClassList[ClassName].Tags
 							if not (ClassTags and ClassTags.NotCreatable) then -- __api_dump_class_not_creatable__ also indicates this
 								-- ! NotCreatableFixes are exceptions to the check above meaning if we don't keep the NotCreatableFixes updated then Instance.new below might start erroring in the future potentially; HOWEVER IsPropertyModified solves this issue and no updates are really needed as NotCreatableFixes is up-to-date as of VERSION-HERE (which is when IPM gets enabled)
-								local ok, result = pcall(Instance.new, ClassName) -- Some creatable instances (ex: TestService on level 3 exploits) throw errors when created, therefor a pcall is needed
+								local ok, result = pcall(Instance.new, ClassName) -- ! pcall is needed for level 3 execs (for example TestService); EXCEPTION NOTED ABOVE (irrelevant)
+
 								if ok then
 									new_def_inst = result
 									default_instance = {}
 
 									default_instances[ClassName] = default_instance
 								elseif __DEBUG_MODE then
-									__DEBUG_MODE("Unable to create default Instance", ClassName)
+									__DEBUG_MODE("Unable to create default Instance x2", ClassName)
 								end	
 							elseif __DEBUG_MODE then
 								__DEBUG_MODE("Unable to create default Instance", ClassName)
