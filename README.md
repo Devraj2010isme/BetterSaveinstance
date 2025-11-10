@@ -80,7 +80,7 @@ All options are case insensitive.
   - Default: false
 - DisableGethiddenpropertyFallback: `boolean`
   - Prevents detections in some games
-  - Default: false 
+  - Default: true if executor gethiddenproperty is available and passes tests, false otherwise
 - ShutdownWhenDone: `boolean`
   - Shuts the game down after saveinstance is finished.
   - Default: false
