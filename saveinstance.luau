@@ -181,7 +181,10 @@ do -- * Load Region of Déjà Vu
 		local rbxcrypt_base64encode
 		pcall(function()
 			local b64_enc_buf = loadstring(
-				HttpGet("https://raw.githubusercontent.com/daily3014/rbx-cryptography/refs/heads/main/src/Utilities/Base64.luau", true),
+				HttpGet(
+					"https://raw.githubusercontent.com/daily3014/rbx-cryptography/refs/heads/main/src/Utilities/Base64.luau",
+					true
+				),
 				"Base64"
 			)().Encode
 			rbxcrypt_base64encode = function(raw)
@@ -1147,7 +1150,7 @@ do
 	}
 
 	local NotScriptableFixes = { --[[
-		For more info: 
+		For more info:
 		- https://github.com/luau/UniversalSynSaveInstance/blob/main/Tools/NotScriptable-Related/Potentially%20Missing%20Properties%20Dumper/Potentially%20Missing%20Properties%20Dumper.luau
 		- https://github.com/luau/UniversalSynSaveInstance/blob/main/Tools/NotScriptable-Related/NotScriptable%20Dumper/NotScriptable%20Dumper.py
 		]]
@@ -1614,7 +1617,7 @@ end
 local GLOBAL_ENV = getgenv and getgenv() or _G or shared
 
 --[=[
-## Options Documentation
+# Options Documentation
 > [!NOTE]
 All options are case insensitive.
 - __DEBUG_MODE: `boolean`
@@ -1631,7 +1634,7 @@ All options are case insensitive.
   - Default: false
 - DisableGethiddenpropertyFallback: `boolean`
   - Prevents detections in some games
-  - Default: false 
+  - Default: true if executor gethiddenproperty is available and passes tests, false otherwise
 - ShutdownWhenDone: `boolean`
   - Shuts the game down after saveinstance is finished.
   - Default: false
@@ -1846,11 +1849,11 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		timeout = 10,
 		-- * New:
 		__DEBUG_MODE = false,
-		DisableGethiddenpropertyFallback = false,
+		DisableGethiddenpropertyFallback = gethiddenproperty,
 		Crashlog = false,
 		-- Binary = false, -- true in syn newer versions (false in our case because no binary support yet), Description: Saves everything in Binary Mode (rbxl/rbxm).
 		Callback = false,
-		--Clipboard/CopyToClipboard = false, -- Description: If set to true, the serialized data will be set to the clipboard, which can be later pasted into studio easily. Useful for saving models. -- Seems to not work with XML form
+		--Clipboard/CopyToClipboard = false, -- Description: If set to true, the serialized data will be set to the clipboard, which can be later pasted into studio easily. Useful for saving models. (Binary Only)
 		-- MaxThreads = 3 -- Description: The number of decompilation threads that can run at once. More threads means it can decompile for scripts at a time.
 		-- DisableCompression = false, --Description: Disables compression in the binary output
 
@@ -3430,8 +3433,8 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 	local function save_game()
 		do
 			if IsModel then
-				--[[ 
-			-- ? Roblox encodes the following additional attributes. These are not required. Moreover, any defined schemas are ignored, and not required for a file to be valid: xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd"  
+				--[[
+			-- ? Roblox encodes the following additional attributes. These are not required. Moreover, any defined schemas are ignored, and not required for a file to be valid: xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd"
 			Also http can be converted to https but not sure if Roblox cares
 			-- ? <External>null</External><External>nil</External>  - <External> is a legacy concept that is no longer used.
 		]]
@@ -3529,7 +3532,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 
 		ServerStorage, ServerScriptService and Server Scripts are IMPOSSIBLE to save because of FilteringEnabled.
 
-		If your player cannot spawn into the game, please move PlayerModule in StarterPlayer somewhere else. Then run `game:GetService("Players").CharacterAutoLoads = true`.
+		If your player cannot spawn into the game, please move PlayerModule in StarterPlayer somewhere else or delete it. Then run `game:GetService("Players").CharacterAutoLoads = true`.
 		And use "Play Here" to start game instead of "Play" to spawn your Character where your Camera currently is.
 
 		If the chat system does not work, please use the explorer and delete everything inside the TextChatService/Chat service(s). 
