@@ -143,40 +143,6 @@ do -- * Load Region of Déjà Vu
 	local test_str = string.rep("\1\0\0\0\1\2\3\4\5\6\7", 50)
 
 	do
-		if not bit32.byteswap or not pcall(bit32.byteswap, 1) then -- Because Fluxus is missing byteswap
-			bit32 = table.clone(bit32)
-
-			local function tobit(num)
-				num %= (bit32.bxor(num, 32))
-				if 0x80000000 < num then
-					num -= bit32.bxor(num, 32)
-				end
-				return num
-			end
-
-			bit32.byteswap = function(num)
-				local BYTE_SIZE = 8
-				local MAX_BYTE_VALUE = 255
-
-				num %= bit32.bxor(2, 32)
-
-				local a = bit32.band(num, MAX_BYTE_VALUE)
-				num = bit32.rshift(num, BYTE_SIZE)
-
-				local b = bit32.band(num, MAX_BYTE_VALUE)
-				num = bit32.rshift(num, BYTE_SIZE)
-
-				local c = bit32.band(num, MAX_BYTE_VALUE)
-				num = bit32.rshift(num, BYTE_SIZE)
-
-				local d = bit32.band(num, MAX_BYTE_VALUE)
-				num = tobit(bit32.lshift(bit32.lshift(bit32.lshift(a, BYTE_SIZE) + b, BYTE_SIZE) + c, BYTE_SIZE) + d)
-				return num
-			end
-
-			table.freeze(bit32)
-		end
-
 		-- Credits @daily3014 & @XoifaiI
 		local rbxcrypt_base64encode
 		pcall(function()
@@ -949,7 +915,7 @@ XML_Descriptors = {
 		return Identifier
 	end,
 	SecurityCapabilities = nil,
-	-- SystemAddress = function(raw) return raw end, -- PeerId?  -- ? Not sure
+	-- SystemAddress = function(raw) return raw end, -- PeerId? systemAddress as a string in the format "IP|Port", "|" being portDelineator, should not be '.', ':', '%', '-', '/', a number, or a-f  -- ? Not sure
 	-- TweenInfo = function(raw) -- ? Not sure
 	-- 	local __NORMALIZE_NUMBER = XML_Descriptors.__NORMALIZE_NUMBER
 	-- 	local enum = XML_Descriptors.__ENUM
@@ -1663,7 +1629,8 @@ All options are case insensitive.
   - Valid Modes:
     - optimized: Saves a hardcoded list of services, best for general use.
     - full: Saves all services.
-    - scripts: Might be removed soon, don't use this.
+    - scripts: Only saves direct children of the instance being saved that contain scripts
+      - This is useless as if the instance being saved is game, everything in workspace will be saved if there is one script in there (so for now, use a standalonescript dumper)
     - To create a custom mode, provide a table of strings with each string being a service name to save.
   - Change this to invalid mode like "invalid" if you only want ExtraInstances.
   - "optimized" mode is NOT supported with @Object option.

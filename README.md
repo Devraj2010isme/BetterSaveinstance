@@ -109,7 +109,8 @@ All options are case insensitive.
   - Valid Modes:
     - optimized: Saves a hardcoded list of services, best for general use.
     - full: Saves all services.
-    - scripts: Might be removed soon, don't use this.
+    - scripts: Only saves direct children of the instance being saved that contain scripts
+      - This is useless as if the instance being saved is game, everything in workspace will be saved if there is one script in there (so for now, use a standalonescript dumper)
     - To create a custom mode, provide a table of strings with each string being a service name to save.
   - Change this to invalid mode like "invalid" if you only want ExtraInstances.
   - "optimized" mode is NOT supported with @Object option.

@@ -1,5 +1,3 @@
--- Saved by UniversalSynSaveInstance https://discord.gg/wx4ThpAsmw
-
 local l_select_0 = select;
 local function v6(v1, v2, ...)
     local v3, v4 = {
