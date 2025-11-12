@@ -1,5 +1,5 @@
 # Description
-A script for Roblox executors that converts the game you are in to a file you can open in Roblox Studio. (Fork UniversalSynSaveInstance with some changes such as fixing gethiddenproperty (terrain, etc) and more). I'll try to keep this up to date with the original.
+A script for Roblox executors that converts the game you are in to a file you can open in Roblox Studio. (Fork of UniversalSynSaveInstance with some changes such as fixing gethiddenproperty (terrain, etc) and more). I'll try to keep this up to date with the original.
 
 
 # Loadstring
@@ -15,7 +15,7 @@ synsaveinstance(Options)
 ```
 # Differences From the Original
 - Fixed gethiddenproperty, in the original it uses UGCValidationService:GetPropertyValue instead. (Allows for terrain to save)
-- Added a counter at the end of the file to prevent overriding when writing to file names that already exist.
+- Added a counter at the end of the file to prevent overwriting when writing to file names that already exist.
   - EX:
     - place 1 example.rbxlx
     - place 1 example(2).rbxlx
@@ -80,7 +80,7 @@ All options are case insensitive.
   - Default: false
 - DisableGethiddenpropertyFallback: `boolean`
   - Prevents detections in some games
-  - Default: true if executor gethiddenproperty is available and passes tests, false otherwise
+  - Default: true if executor gethiddenproperty is available and passes tests and the executor isn't Nihon, false otherwise
 - ShutdownWhenDone: `boolean`
   - Shuts the game down after saveinstance is finished.
   - Default: false
@@ -201,7 +201,7 @@ All options are case insensitive.
   - Default: false
 - IgnoreSpecialProperties: `boolean`
   - Prevents calls to gethiddenproperty and uses fallback methods instead. This also helps with crashes. If your file is corrupted after saving, you can try turning this on.
-  - Default: false (except on the executors Fluxus, Solara, Visual, WRD, and JJSploit x Xeno)
+  - Default: false (except on the executors Xeno (includes JJSploit) and Solara)
 - IsolateLocalPlayer: `boolean`
   - Saves Children of LocalPlayer as separate folder and prevents any instance of ClassName Player with .Name identical to LocalPlayer.Name from saving.
   - Enables SaveNotCreatable
@@ -246,11 +246,17 @@ All options are case insensitive.
   - Default: true
 - IgnoreSharedStrings: `boolean`
   - Prevents the value type "SharedString" from saving. Prevents Crashes on some executors.
-  - Default: true (except on the executors Wave, Potassium, Zenith, Seliware, Volcano, Velocity and Swift, as they are confirmed to support sharedstrings.)
+  - Default: true (except on the executors Wave, Zenith, Swift, Potassium, Volcano, Velocity, Codex, and Nihon, as they are confirmed to support sharedstrings.)
 - SharedStringOverwrite: `boolean`
   - SharedStrings can also be used for ValueTypes that aren't SharedString, this behavior is not documented anywhere but makes sense (Could create issues though, due to potential ValueType mix-up, only works on certain types which are all base64 encoded so far).
   - Reason: Allows for potential smaller file size (can also be bigger in some cases).
   - Default: false
+- IgnoreSpecialStrings: `boolean`
+  - Prevents special properties with the type "string" from being read by gethiddenproperty. Prevents crashes on some executors.
+  - Default: false (except on the executor Velocity)
+- IgnoreSpecialClassProperties: `boolean`
+  - Prevents special properties with the category "Class" (Properties with instance values) from being read by gethiddenproperty. Prevents crashes on some executors
+  - Default: false (except on the executor Velocity)
 - TreatUnionsAsParts: `boolean`
   - Converts all UnionOperations to Parts. Useful if your Executor isn't able to save (read) Unions, because otherwise they will be invisible.
   - Default: false (except on Solara, Xeno, and JJSploit)

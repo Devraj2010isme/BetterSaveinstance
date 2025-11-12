@@ -112,7 +112,7 @@ local getscriptbytecode = global_container.getscriptbytecode -- * A lot of assum
 local base64encode = global_container.base64encode
 
 do -- * Load Region of Déjà Vu
-	if gethiddenproperty and EXECUTOR_NAME ~= "Velocity" then -- Velocity fails due to enums not being supported, but BinaryString and SharedString still are (handled later)
+	if gethiddenproperty and EXECUTOR_NAME ~= "Nihon" then -- Nihon fails due to enums not being supported, but BinaryString and SharedString still are (handled later)
 		local o, r = pcall(gethiddenproperty, workspace, "StreamOutBehavior")
 		if not o or r ~= nil and typeof(r) ~= "EnumItem" then -- * Tests if gethiddenproperty is broken
 			gethiddenproperty = nil
@@ -1600,7 +1600,7 @@ All options are case insensitive.
   - Default: false
 - DisableGethiddenpropertyFallback: `boolean`
   - Prevents detections in some games
-  - Default: true if executor gethiddenproperty is available and passes tests, false otherwise
+  - Default: true if executor gethiddenproperty is available and passes tests and the executor isn't Nihon, false otherwise
 - ShutdownWhenDone: `boolean`
   - Shuts the game down after saveinstance is finished.
   - Default: false
@@ -1721,7 +1721,7 @@ All options are case insensitive.
   - Default: false
 - IgnoreSpecialProperties: `boolean`
   - Prevents calls to gethiddenproperty and uses fallback methods instead. This also helps with crashes. If your file is corrupted after saving, you can try turning this on.
-  - Default: false (except on the executors Fluxus, Solara, Visual, WRD, and JJSploit x Xeno)
+  - Default: false (except on the executors Xeno (includes JJSploit) and Solara)
 - IsolateLocalPlayer: `boolean`
   - Saves Children of LocalPlayer as separate folder and prevents any instance of ClassName Player with .Name identical to LocalPlayer.Name from saving.
   - Enables SaveNotCreatable
@@ -1766,11 +1766,17 @@ All options are case insensitive.
   - Default: true
 - IgnoreSharedStrings: `boolean`
   - Prevents the value type "SharedString" from saving. Prevents Crashes on some executors.
-  - Default: true (except on the executors Wave, Potassium, Zenith, Seliware, Volcano, Velocity and Swift, as they are confirmed to support sharedstrings.)
+  - Default: true (except on the executors Wave, Zenith, Swift, Potassium, Volcano, Velocity, Codex, and Nihon, as they are confirmed to support sharedstrings.)
 - SharedStringOverwrite: `boolean`
   - SharedStrings can also be used for ValueTypes that aren't SharedString, this behavior is not documented anywhere but makes sense (Could create issues though, due to potential ValueType mix-up, only works on certain types which are all base64 encoded so far).
   - Reason: Allows for potential smaller file size (can also be bigger in some cases).
   - Default: false
+- IgnoreSpecialStrings: `boolean`
+  - Prevents special properties with the type "string" from being read by gethiddenproperty. Prevents crashes on some executors.
+  - Default: false (except on the executor Velocity)
+- IgnoreSpecialClassProperties: `boolean`
+  - Prevents special properties with the category "Class" (Properties with instance values) from being read by gethiddenproperty. Prevents crashes on some executors
+  - Default: false (except on the executor Velocity)
 - TreatUnionsAsParts: `boolean`
   - Converts all UnionOperations to Parts. Useful if your Executor isn't able to save (read) Unions, because otherwise they will be invisible.
   - Default: false (except on Solara, Xeno, and JJSploit)
@@ -1816,7 +1822,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		timeout = 10,
 		-- * New:
 		__DEBUG_MODE = false,
-		DisableGethiddenpropertyFallback = gethiddenproperty,
+		DisableGethiddenpropertyFallback = (gethiddenproperty and EXECUTOR_NAME ~= "Nihon") or false,
 		Crashlog = false,
 		-- Binary = false, -- true in syn newer versions (false in our case because no binary support yet), Description: Saves everything in Binary Mode (rbxl/rbxm).
 		Callback = false,
@@ -1830,7 +1836,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 			"TextChatService",
 			ModuleScript = nil,
 		},
-		IgnoreDefaultPlayerScripts = not ArrayToDict({ "Wave", "Potassium", "Volcano", "Solara"})[EXECUTOR_NAME],
+		IgnoreDefaultPlayerScripts = true,
 		SaveBytecode = false,
 		SaveBytecodeIfDecompilerFails = false,
 		SaveCompilationErrors = true,
@@ -1856,7 +1862,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		IgnoreDefaultProperties = true,
 		IgnoreNotArchivable = true,
 		IgnorePropertiesOfNotScriptsOnScriptsMode = false,
-		IgnoreSpecialProperties = ArrayToDict({ "Fluxus", "Solara", "WRD", "JJSploit x Xeno"})[EXECUTOR_NAME] or false, -- ! Please submit more Executors that crash on gethiddenproperty (with this disabled basically). Visual is becaues binarystring gets cut off, JJSploit is because gethiddenproperty returns 0 when it can't read a property instead of failing.
+		IgnoreSpecialProperties = ArrayToDict({"Xeno", "Solara"})[EXECUTOR_NAME] or false, -- ! Please submit more Executors that crash on gethiddenproperty (with this disabled basically). Xeno (also JJSploit, which uses Xeno's api and has the same identifyexecutor() as Xeno) is because gethiddenproperty returns 0 when it can't read a property instead of failing. Solara's gethiddenproperty is just slow.
 
 		IsolateLocalPlayer = false, --  #service.StarterGui:GetChildren() == 0
 		IsolateLocalPlayerCharacter = false,
@@ -1889,10 +1895,12 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		SavePropsAsAttributesForNotCreatableFixes = false,
 		-- ! Risky
 
-		IgnoreSharedStrings = not ArrayToDict({ "Wave", "Zenith", "Swift", "Potassium", "Volcano", "Velocity", "Codex"})[EXECUTOR_NAME],
+		IgnoreSharedStrings = not ArrayToDict({ "Wave", "Zenith", "Swift", "Potassium", "Volcano", "Velocity", "Codex", "Nihon" })[EXECUTOR_NAME],
 		SharedStringOverwrite = false,
-		TreatUnionsAsParts = ArrayToDict({ "Solara", "Xeno", "WRD", "Zorara", "JJSploit x Xeno" })[EXECUTOR_NAME] or false,
-		AlternativeWritefile = not ArrayToDict({ "WRD", "Xeno", "Zorara", "JJSploit x Xeno" })[EXECUTOR_NAME],
+		IgnoreSpecialStrings = ArrayToDict({"Velocity"})[EXECUTOR_NAME] or false,
+		IgnoreSpecialClassProperties = ArrayToDict({"Velocity"})[EXECUTOR_NAME] or false,
+		TreatUnionsAsParts = ArrayToDict({ "Solara", "Xeno", "Zorara" })[EXECUTOR_NAME] or false,
+		AlternativeWritefile = not ArrayToDict({"Xeno", "Zorara"})[EXECUTOR_NAME],
 
 		OptionsAliases = { -- You can't really modify these as a user
 			DecompileTimeout = "timeout",
@@ -2152,7 +2160,8 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 	end
 	local IgnoreSharedStrings = OPTIONS.IgnoreSharedStrings
 	local SharedStringOverwrite = OPTIONS.SharedStringOverwrite
-
+	local IgnoreSpecialStrings = OPTIONS.IgnoreSpecialStrings
+	local IgnoreSpecialClassProperties = OPTIONS.IgnoreSpecialClassProperties
 	local ldeccache = GLOBAL_ENV.scriptcache
 
 	local DecompileIgnoring, ToSaveList, ldecompile, placename, elapse_t, SaveNotCreatableWillBeEnabled, RecoveredScripts
@@ -2650,7 +2659,15 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 
 		if special then
 			if gethiddenproperty then
-				if EXECUTOR_NAME == "Velocity" and not ArrayToDict({"BinaryString", "SharedString"})[property.ValueType] then
+				if EXECUTOR_NAME == "Nihon" and not ArrayToDict({"BinaryString", "SharedString"})[property.ValueType] then
+					property.CanRead = false
+					return __BREAK
+				end
+				if IgnoreSpecialStrings and property.ValueType == "string" then
+					property.CanRead = false
+					return __BREAK
+				end
+				if IgnoreSpecialClassProperties and property.Category == "Class" then
 					property.CanRead = false
 					return __BREAK
 				end
@@ -2683,6 +2700,18 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 				if ok then
 					raw = result
 				elseif gethiddenproperty then -- ! Be careful with this 'and gethiddenproperty' logic
+					if EXECUTOR_NAME == "Nihon" and not ArrayToDict({"BinaryString", "SharedString"})[property.ValueType] then
+						property.CanRead = false
+						return __BREAK
+					end
+					if IgnoreSpecialStrings and property.ValueType == "string" then
+						property.CanRead = false
+						return __BREAK
+					end
+					if IgnoreSpecialClassProperties and property.Category == "Class" then
+						property.CanRead = false
+						return __BREAK
+					end
 					ok, result = pcall(gethiddenproperty, instance, propertyName)
 
 					if ok then

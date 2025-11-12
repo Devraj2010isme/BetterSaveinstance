@@ -55,6 +55,8 @@ local test_PART = Instance.new("Part")
 test_PART.Parent = test_MODEL
 local test_WELDCONSTRAINT = Instance.new("WeldConstraint")
 test_WELDCONSTRAINT.Part0 = test_PART
+local test_UNION = Instance.new("UnionOperation")
+
 if IncludeUnnecessityTypes then
 	test(workspace, "StreamOutBehavior", "Category:Enum") -- Enum Category
 	test(workspace, "ExplicitAutoJoints", "bool") -- bool
@@ -83,9 +85,9 @@ else
 end
 test(test_PART, "Color3uint8", "Color3uint8") -- Color3uint8
 test(Instance.new("TerrainRegion"), "ExtentsMax", "Vector3int16") -- Vector3int16
-test(workspace, "WorldPivotData", "OptionalCoordinateFrame") -- OptionalCoordinateFrame todo: make this have a value instead of nil
-test(findinstance("UnionOperation"), "DCDPropertyData", "CSGPropertyData") -- CSGPropertyData
-test(findinstance("UnionOperation"), "ConvexDecompHolder", "NetAssetRef") -- NetAssetRef
+test(workspace, "WorldPivotData", "OptionalCoordinateFrame") -- OptionalCoordinateFrame
+test(test_UNION, "DCDPropertyData", "CSGPropertyData") -- CSGPropertyData
+test(test_UNION, "SolidMeshHolder", "NetAssetRef") -- NetAssetRef
 test(test_PART, "ReplicationPV", "ReplicationPV") -- ReplicationPV
 test(Instance.new("Animator"), "FacsReplicationData", "FacsReplicationData") -- FacsReplicationData
 
