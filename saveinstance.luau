@@ -1196,6 +1196,40 @@ do
 		},
 
 		-- DebuggerBreakpoint = {line="Line"}, -- ? This shouldn't appear in live games (try to prove this wrong)
+		AudioEmitter = {
+			AngleAttenuation = function(instance)
+				local AngleAttenuationValues = instance:GetAngleAttenuation()
+				
+				local SortedKeys = {}
+				for key, _ in AngleAttenuationValues do
+					table.insert(SortedKeys, key)
+				end
+				table.sort(SortedKeys) -- Keys are organized from smallest to biggest
+				
+				local b = "\0" -- [CONSTANT] Empty header
+				for _, key in SortedKeys do
+					b ..= string.pack("ff", key, AngleAttenuationValues[key])
+				end
+				
+				return b
+			end,
+			DistanceAttenuation = function(instance)
+				local DistanceAttenuationValues = instance:GetDistanceAttenuation()
+				
+				local SortedKeys = {}
+				for key, _ in DistanceAttenuationValues do
+					table.insert(SortedKeys, key)
+				end
+				table.sort(SortedKeys) -- Keys are organized from smallest to biggest
+				
+				local b = "\0" -- [CONSTANT] Empty header
+				for _, key in SortedKeys do
+					b ..= string.pack("ff", key, DistanceAttenuationValues[key])
+				end
+				
+				return b
+			end,
+		},
 		BallSocketConstraint = { MaxFrictionTorqueXml = "MaxFrictionTorque" },
 		BasePart = {
 			Color3uint8 = "Color",
@@ -3200,6 +3234,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 						if
 							default_instance
 							and not Property.Special -- TODO: .Special is checked more than once (because it might be updated during ReadProperty)
+							and Property.CanRead ~= false
 							and not (PropertyName == "Source" and isLuaSourceContainer(instance))
 						then -- ? Could be not just "Source" in the future
 							if new_def_inst then

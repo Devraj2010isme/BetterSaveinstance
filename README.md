@@ -44,7 +44,10 @@ synsaveinstance(Options)
 - Support for custom modes
   - Allows for providing a table of service names for the mode option
   - Works the same as optimized mode, but allows for the changing that hardcoded table
-- Support for executors with no custom functions (including base roblox) 
+- Support for executors with no custom functions (including base roblox)
+- More NotScriptableFixes (fallbacks for specific properties if they can't be read)
+  - AudioEmitter.AngleAttenuation
+  - AudioEmitter.DistanceAttenuation
 - More small changes and fixes
    - Option IsolateLocalPlayerCharacter now isolates as a model instead of a folder
    - NotCreatableFixes for Dragger and AdvancedDragger, as they prevent the file from opening
