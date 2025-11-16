@@ -815,7 +815,7 @@ XML_Descriptors = {
 		return "<axes>" .. __COUNT_BITS(raw.X, raw.Y, raw.Z) .. "</axes>"
 	end,
 
-	-- ? Roblox uses CDATA only for these (try to prove this wrong): CollisionGroupData, SmoothGrid, MaterialColors, PhysicsGrid
+	-- ? Roblox uses CDATA only for these (try to prove this wrong): Workspace.CollisionGroupData, Terrain.SmoothGrid, Terrain.MaterialColors, Terrain.PhysicsGrid, AnimationRigData.postTransform, AnimationRigData.preTransform, AnimationRigData.transform
 	-- ! Assuming all base64 encoded strings won't have newlines
 
 	BinaryString = function(raw)
@@ -1246,6 +1246,47 @@ do
 		return buffer.tostring(b)
 	end
 
+	local function TransformsSerialize(Transforms)
+		local b = buffer.create(#Transforms * 48 + 8) -- 48 bytes per transform, 8 byte header
+		
+		local offset = 0
+
+		buffer.writeu32(b, offset, 1) -- ? [CONSTANT] Version byte (likely)
+		offset += 4
+		buffer.writeu32(b, offset, #Transforms) -- Transform count
+		offset += 4
+		
+		for _, transform in Transforms do
+			local X, Y, Z, R00, R01, R02, R10, R11, R12, R20, R21, R22 = transform:GetComponents()
+			buffer.writef32(b, offset, R00)
+			offset += 4
+			buffer.writef32(b, offset, R01)
+			offset += 4
+			buffer.writef32(b, offset, R02)
+			offset += 4
+			buffer.writef32(b, offset, R10)
+			offset += 4
+			buffer.writef32(b, offset, R11)
+			offset += 4
+			buffer.writef32(b, offset, R12)
+			offset += 4
+			buffer.writef32(b, offset, R20)
+			offset += 4
+			buffer.writef32(b, offset, R21)
+			offset += 4
+			buffer.writef32(b, offset, R22)
+			offset += 4
+			buffer.writef32(b, offset, X)
+			offset += 4
+			buffer.writef32(b, offset, Y)
+			offset += 4
+			buffer.writef32(b, offset, Z)
+			offset += 4
+		end
+		
+		return buffer.tostring(b)
+	end
+
 	local NotScriptableFixes = { --[[
 		For more info:
 		- https://github.com/luau/UniversalSynSaveInstance/blob/main/Tools/NotScriptable-Related/Potentially%20Missing%20Properties%20Dumper/Potentially%20Missing%20Properties%20Dumper.luau
@@ -1367,6 +1408,173 @@ do
 				return buffer.tostring(b)
 			end,
 		},
+		AudioDeviceInput = {
+			AccessList = function(instance) -- CanSave = false, CanLoad = false
+				local UserIdAccessList = instance:GetUserIdAccessList()
+	
+				if #UserIdAccessList == 0 then
+					return ""
+				end
+    
+				local b = {}
+				local offset = 1
+				for _, UserId in UserIdAccessList do
+					b[offset] = string.pack("I8", UserId)
+					offset += 1
+				end
+				return table.concat(b)
+			end,
+		},
+		AnimationNodeDefinition = {
+			InputPinData = function(instance)
+				local InputPins = instance:GetInputPins()
+				
+				if #InputPins == 0 then
+					return "\1\0\0\0\0\0\0\0"
+				end
+				
+				local buffer_size = 8 -- Initial size
+				
+				for _, pin in InputPins do
+					buffer_size += 4 + #pin
+				end
+				
+				local b = buffer.create(buffer_size)
+
+				local offset = 0
+				
+				buffer.writeu32(b, offset, 1) -- ? [CONSTANT] Version byte (likely)
+				offset += 4
+				buffer.writeu32(b, offset, #InputPins) -- Input Pin count
+				offset += 4
+				
+				for _, pin in InputPins do
+					buffer.writeu32(b, offset, #pin)
+					offset += 4
+					buffer.writestring(b, offset, pin)
+					offset += #pin
+				end
+				
+				return buffer.tostring(b)
+			end,
+		},
+		AnimationRigData = {
+			label = function(instance)
+				local Labels = instance:GetLabels() -- Requires capability RobloxScript
+
+				if #Labels == 0 then
+					return "\1\0\0\0\0\0\0\0"
+				end
+
+				local buffer_size = #Labels * 4 + 8 -- 4 bytes per label, 8 byte header
+
+				local b = buffer.create(buffer_size)
+
+				local offset = 0
+
+				buffer.writeu32(b, offset, 1) -- ? [CONSTANT] Version byte (likely)
+				offset += 4
+				buffer.writeu32(b, offset, #Labels) -- Label count
+				offset += 4
+
+				for _, label in Labels do
+					buffer.writeu32(b, offset, label)
+					offset += 4
+				end
+
+				return buffer.tostring(b)
+			end,
+
+			name = function(instance)
+				local Names = instance:GetNames() -- Requires capability RobloxScript
+				
+				if #Names == 0 then
+					return "\1\0\0\0\0\0\0\0"
+				end
+				
+				local buffer_size = 8 -- Initial size
+				
+				for _, name in Names do
+					buffer_size += 4 + #name
+				end
+				
+				local b = buffer.create(buffer_size)
+
+				local offset = 0
+
+				buffer.writeu32(b, offset, 1) -- ? [CONSTANT] Version byte (likely)
+				offset += 4
+				buffer.writeu32(b, offset, #Names) -- Name count
+				offset += 4
+				
+				for _, name in Names do
+					buffer.writeu32(b, offset, #name)
+					offset += 4
+				end
+				for _, name in Names do
+					buffer.writestring(b, offset, name)
+					offset += #name
+				end
+				
+				return buffer.tostring(b)
+			end,
+
+			parent = function(instance)
+				local Parents = instance:GetParents() -- Requires capability RobloxScript
+				
+				if #Parents == 0 then
+					return "\1\0\0\0\0\0\0\0"
+				end
+				
+				local buffer_size = #Parents * 2 + 8 -- 2 bytes per parent, 8 byte header
+				
+				local b = buffer.create(buffer_size)
+
+				local offset = 0
+				
+				buffer.writeu32(b, offset, 1) -- ? [CONSTANT] Version byte (likely)
+				offset += 4
+				buffer.writeu32(b, offset, #Parents) -- Parent count
+				offset += 4
+				
+				for _, parent in Parents do
+					buffer.writeu16(b, offset, parent)
+					offset += 2
+				end
+				
+				return buffer.tostring(b)
+			end,
+
+			postTransform = function(instance)
+				local PostTransforms = instance:GetPostTransforms() -- Requires capability RobloxScript
+				
+				if #PostTransforms == 0 then
+					return "\1\0\0\0\0\0\0\0"
+				end
+				
+				return TransformsSerialize(PostTransforms)
+			end,
+			
+			preTransform = function(instance)
+				local PreTransforms = instance:GetPreTransforms() -- Requires capability RobloxScript
+				
+				if #PreTransforms == 0 then
+					return "\1\0\0\0\0\0\0\0"
+				end
+				
+				return TransformsSerialize(PreTransforms)
+			end,
+			
+			transform = function(instance)
+				local Transforms = instance:GetTransforms() -- Requires capability RobloxScript
+				
+				if #Transforms == 0 then
+					return "\1\0\0\0\0\0\0\0"
+				end
+				
+				return TransformsSerialize(Transforms)
+			end,
+		},
 		AudioEmitter = {
 			AngleAttenuation = function(instance)
 				return AttenuationSerialize(instance:GetAngleAttenuation())
@@ -1392,7 +1600,17 @@ do
 		},
 		DoubleConstrainedValue = { value = "Value" },
 		IntConstrainedValue = { value = "Value" },
+		PlayerEmulatorService = {
+			SerializedEmulatedPolicyInfo = function(instance)
+				local EmulatedPolicyInfo = instance:GetEmulatedPolicyInfo()
 
+				if not next(EmulatedPolicyInfo) then
+					return ""
+				end
+
+				return AttributesSerialize(EmulatedPolicyInfo)
+			end,
+		},
 		-- CustomEvent = {PersistedCurrentValue=function(instance) -- * Class is Deprecated and :SetValue doesn't seem to affect GetCurrentValue anymore
 		-- 	local Receiver  = instance:GetAttachedReceivers()[1]
 		-- 	if Receiver then
@@ -1402,7 +1620,7 @@ do
 		-- 	end
 		-- end},
 		Terrain = {
-			AcquisitionMethod = "LastUsedModificationMethod", -- ? Not sure
+			AcquisitionMethod = "LastUsedModificationMethod", -- ? Not sure, Requires capability RobloxScript
 			MaterialColors = function(instance) -- https://github.com/RobloxAPI/spec/blob/master/properties/MaterialColors.md
 				local TERRAIN_MATERIAL_COLORS =
 					{ --https://github.com/rojo-rbx/rbx-dom/blob/master/rbx_dom_lua/src/customProperties.lua#L5
@@ -1478,7 +1696,7 @@ do
 				return instance:GetContents() --service.HttpService:JSONEncode(instance:GetEntries())
 			end,
 		},
-		MaterialService = { Use2022MaterialsXml = "Use2022Materials" },
+		MaterialService = { Use2022MaterialsXml = "Use2022Materials" }, -- Requires capability RobloxScript
 
 		Model = {
 			ScaleFactor = function(instance)
@@ -2943,9 +3161,9 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 					if ok then
 						raw = result
 					else
+						Property.Fallback = nil
 						if __DEBUG_MODE then
-							-- TODO Maybe remove the fix during runtime if it fails to avoid re-trying
-							__DEBUG_MODE("Fix Failed", PropertyName)
+							__DEBUG_MODE("Fix Failed", result, PropertyName)
 						end
 						return __BREAK
 					end

@@ -46,11 +46,18 @@ synsaveinstance(Options)
   - Works the same as optimized mode, but allows for the changing that hardcoded table
 - Support for executors with no custom functions (including base roblox)
 - More NotScriptableFixes (fallbacks for specific properties if they can't be read)
-  - AudioEmitter.AngleAttenuation
-  - AudioEmitter.DistanceAttenuation
+  - AudioDeviceInput.AccessList
+  - AnimationNodeDefinition.InputPinData
+  - AnimationRigData.label
+  - AnimationRigData.name
+  - AnimationRigData.parent
+  - AnimationRigData.postTransform
+  - AnimationRigData.preTransform
+  - AnimationRigData.transform
+  - PlayerEmulatorService.SerializedEmulatedPolicyInfo
 - More small changes and fixes
-   - Option IsolateLocalPlayerCharacter now isolates as a model instead of a folder
-   - NotCreatableFixes for Dragger and AdvancedDragger, as they prevent the file from opening
+  - Option IsolateLocalPlayerCharacter now isolates as a model instead of a folder
+  - NotScriptableFixes are removed if they fail
 # Universal Syn Save Instance
 
 Or shortly USSI, a project aimed at resurrecting saveinstance function from Synapse X.<br />
