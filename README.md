@@ -15,10 +15,6 @@ synsaveinstance(Options)
 ```
 # Differences From the Original
 - Fixed gethiddenproperty, in the original it uses UGCValidationService:GetPropertyValue instead. (Allows for terrain to save)
-- Added a counter at the end of the file to prevent overwriting when writing to file names that already exist.
-  - EX:
-    - place 1 example.rbxlx
-    - place 1 example(2).rbxlx
 - Custom Decompiler (decomptype)
     - Uses a locally hosted version of Konstant 2.1 for blazingly fast speed
     - Enabled when there is no decompiler, or with the option decomptype = "custom"
@@ -30,7 +26,6 @@ synsaveinstance(Options)
   - View docs for more info
   - Default: true
 - Option Crashlog
-- Support for saving attributes/tags of the folder substitutes created by isolate options (IsolateLocalPlayer, etc)
 - Support for properties which cannot be saved or loaded by roblox studio (CanSave or CanLoad = false in the api dump)
   - Works by converting them to attributes
   - Enabled with the option SaveAsAttributes
@@ -39,14 +34,10 @@ synsaveinstance(Options)
   - Enabled with the option SavePropsAsAttributesForNotCreatableFixes 
 - Better default executors for many options
 - A fix for the UGCValidationService detection
-  - Disabled by default, enabled with the option DisableGethiddenpropertyFallback
-  - It's recommended only to enable this if you encounter a detection, as some properties cannot be read by normal gethiddenproperty and need the fallback
+  - Enabled if your executor's gethiddenproperty is working, or with the option DisableGethiddenpropertyFallback
 - Support for custom modes
   - Allows for providing a table of service names for the mode option
   - Works the same as optimized mode, but allows for the changing that hardcoded table
-- More small changes and fixes
-  - Option IsolateLocalPlayerCharacter now isolates as a model instead of a folder
-  - NotScriptableFixes are removed if they fail
 # Universal Syn Save Instance
 
 Or shortly USSI, a project aimed at resurrecting saveinstance function from Synapse X.<br />
@@ -173,6 +164,9 @@ All options are case insensitive.
   - EX: FilePath = "Place" not "Place.rbxlx"
   - Aliases: FileName
   - Default: false
+- AvoidFileOverwrite `boolean`
+  - Prevents writing to place files that already exist.
+  - Default: true
 - Object: `Instance`
   - If provided, saves as .rbxmx (Model file) instead. If Object is game, it will be saved as a .rbxl file. MUST BE AN INSTANCE REFERENCE, FOR EXAMPLE - game.Workspace. "optimized" mode is NOT supported with this option. If IsModel is set to false then Object specified here will be saved as a place file.
   - Default: false

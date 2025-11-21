@@ -52,7 +52,7 @@ do
 		-- getcon = 'string.find(...,"get",nil,true) and (string.find(...,"conn",nil,true) or string.find(...,"sig",nil,true)) and string.sub(...,#(...))=="s"',
 		getnilinstances = 'string.find(...,"nil",nil,true) and string.find(...,"get",nil,true) and string.sub(...,#...) == "s"', -- ! Could match some unwanted stuff
 		getscriptbytecode = 'string.find(...,"get",nil,true) and string.find(...,"bytecode",nil,true)', --  or string.find(...,"dump",nil,true) and string.find(...,"string",nil,true) due to Fluxus (dumpstring returns a function)
-		--hash = 'local a={...}local b=a[1]local function c(a,b)return string.find(a,b,nil,true)end;return c(b,"hash")and c(string.lower(tostring(a[2])),"crypt")',
+		-- hash = 'local a={...}local b=a[1]local function c(a,b)return string.find(a,b,nil,true)end;return c(b,"hash")and c(string.lower(tostring(a[2])),"crypt")',
 		protectgui = 'string.find(...,"protect",nil,true) and string.find(...,"ui",nil,true) and not string.find(...,"un",nil,true)',
 		setthreadidentity = 'string.find(...,"identity",nil,true) and string.find(...,"set",nil,true)',
 	}, true, 10)
@@ -67,9 +67,9 @@ local gethiddenproperty = global_container.gethiddenproperty
 
 -- These should be universal enough
 local appendfile = appendfile
+local isfile = isfile
 local readfile = readfile
 local writefile = writefile
-local isfile = isfile
 
 local getscriptbytecode = global_container.getscriptbytecode -- * A lot of assumptions are made based on whether this function is defined or not. So in certain edge cases, like if the executor defines "decompile" or "getscripthash" function yet doesn't define this function there might be loss of functionality of the saveinstance. Although that would be very rare and weird
 local base64encode = global_container.base64encode
@@ -105,7 +105,7 @@ do -- * Load Region of Déjà Vu
 			end
 		end
 	end
-	
+
 	local function benchmark(funcs, ...)
 		local ranking = table.create(2)
 		for i, f in funcs do
@@ -333,7 +333,7 @@ local CAPABILITY_BITS = {
 	InternalTest = 2 ^ 60, ---------  60 (0x3c), Related to TestingGameScript
 	PluginOrOpenCloud = 2 ^ 61, ----  61 (0x3d)
 	Assistant = 2 ^ 62, ------------  62 (0x3e)
-	-- Restricted = 2 ^ 64, -----------  for negative (highest bit for signed integers)
+	-- Restricted = 2 ^ 63, --------  for negative (highest bit for i64)
 }
 
 local function __COUNT_CAPABILITY_BITS(raw)
@@ -1070,7 +1070,7 @@ XML_Descriptors = {
 	-- 		account for anyway. They generate diff noise, so we shouldn't serialize
 	-- 		them until we have to.
 	-- 	]]
-	-- 	-- https://github.com/MaximumADHD/Roblox-Client-Tracker/blob/e615792759169f26fa367054bdad51dfd02aa04d/LuaPackages/Packages/_Index/ApolloClientTesting/ApolloClientTesting/utilities/common/makeUniqueId.lua
+	-- 	-- https://github.com/MaximumADHD/Roblox-Client-Tracker/blob/master/LuaPackages/Packages/_Index/ApolloClient/ApolloClient/utilities/common/makeUniqueId.lua#L68
 	-- 	return string.gsub(raw, "-", "")
 	-- end,
 
@@ -2064,6 +2064,9 @@ All options are case insensitive.
   - EX: FilePath = "Place" not "Place.rbxlx"
   - Aliases: FileName
   - Default: false
+- AvoidFileOverwrite `boolean`
+  - Prevents writing to place files that already exist.
+  - Default: true
 - Object: `Instance`
   - If provided, saves as .rbxmx (Model file) instead. If Object is game, it will be saved as a .rbxl file. MUST BE AN INSTANCE REFERENCE, FOR EXAMPLE - game.Workspace. "optimized" mode is NOT supported with this option. If IsModel is set to false then Object specified here will be saved as a place file.
   - Default: false
@@ -2226,6 +2229,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		Anonymous = false,
 		ReadMe = true,
 		FilePath = false,
+		AvoidFileOverwrite = true,
 		Object = false,
 		IsModel = false,
 
@@ -2323,7 +2327,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 					-- Fix.Name = Name
 
 					instancePropertyOverrides[Fix] =
-						{ __SaveSpecific = true, __Children = { instance }, Properties = { Name = {raw = Name, ValueType = "string"} } }
+						{ __SaveSpecific = true, __Children = { instance }, Properties = { Name = Name } }
 				else
 					Fix = Exists
 					table.insert(instancePropertyOverrides[Fix].__Children, instance)
@@ -2402,7 +2406,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 	end
 	
 	if not writefile and not OPTIONS.Callback then
-		warn('Function "writefile" not available. Use the option "Callback" for use without writefile.')
+		warn('Function "writefile" is NOT available\nUse the Option "Callback" instead for now (check docs)')
 		GLOBAL_ENV.USSI = nil
 		return
 	end
@@ -2594,34 +2598,31 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 			end
 		end
 
-		local Filetype
-		if IsModel then
-			FileType = ".rbxmx"
-			placename = (
-				FilePath
-				or sanitizeFileName("model " .. PlaceName .. " " .. (ToSaveInstance or tmp[1] or game):GetFullName())
-			)
+		local filetype = IsModel and ".rbxmx" or ".rbxlx"
+
+		if FilePath then
+			placename = FilePath
+		elseif IsModel then
+			placename =
+				sanitizeFileName("model " .. PlaceName .. " " .. (ToSaveInstance or tmp[1] or game):GetFullName())
 		else
-			FileType = ".rbxlx"
-			placename = (FilePath or sanitizeFileName("place " .. PlaceName))
+			placename = sanitizeFileName("place " .. PlaceName)
 		end
 
-		-- Simple loop to find an avbaible file name. Not the most elegant or optimized solution, this is the only repeat loop in the entire file, but it shouldn't impact performance unless you are saving with the same filename 1 million times.
-		if isfile then
-			local PlaceNameCounter = 1
-			local TempName
-			repeat
-				if PlaceNameCounter == 1 then
-					TempName = placename
-				else
-					TempName = placename .. "(" .. PlaceNameCounter .. ")"
-				end
-				PlaceNameCounter = PlaceNameCounter + 1
-			until not isfile(TempName .. FileType)
-			placename = TempName .. FileType
+		if OPTIONS.AvoidFileOverwrite and isfile then
+			local counter = 1
+			local temp = placename
+
+			while isfile(temp .. filetype) do
+				counter += 1
+				temp = placename .. "(" .. counter .. ")"
+			end
+
+			placename = temp .. filetype
 		else
-			placename ..= FileType
+			placename = placename .. filetype
 		end
+
 		if GLOBAL_ENV[placename] then
 			-- warn("UniversalSynSaveInstance is already saving to this file")
 			return
@@ -2629,6 +2630,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 
 		GLOBAL_ENV[placename] = true
 		GLOBAL_ENV.USSI = nil
+
 		if mode ~= "scripts" then
 			IgnorePropertiesOfNotScriptsOnScriptsMode = nil
 		end
@@ -2877,18 +2879,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		end
 	end
 	do
-		local Decompiler = decompile --OPTIONS.decomptype == "custom" and custom_decompiler or decompile or custom_decompiler
-
-		-- if Decompiler == custom_decompiler then -- Cope
-		-- 	local key = "DecompileTimeout"
-		-- 	if CustomOptions[key] == nil then
-		-- 		local Option = GetAlias(key)
-		-- 		if CustomOptions[Option] == nil then
-		-- 			Timeout = 1
-		-- 		end
-		-- 	end
-
-		-- end
+		local Decompiler = decompile
 
 		if OPTIONS.noscripts then
 			ldecompile = function(script)
@@ -3143,77 +3134,6 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		if Crashlog then Crashlog("    Property "..PropertyName.." read successfully") end
 		return raw
 	end
-	
-	local function GetInheritedProps(className, useNotSaveableProperties, classesToStopBefore)
-		local prop_list = {}
-		local layer = ClassList[className]
-		while layer do
-			local layer_props
-			if useNotSaveableProperties then
-				layer_props = layer.NotSaveableProperties
-			else
-				layer_props = layer.Properties
-			end
-			table.move(layer_props, 1, #layer_props, #prop_list + 1, prop_list)
-
-			-- for _, prop in layer.Properties do
-			-- 	prop_list[prop_count] = prop -- ? table.clone is needed for case where .Default is modified
-			-- 	prop_count += 1
-			-- end
-			local SuperClass = layer.Superclass
-			layer = ClassList[SuperClass]
-			if classesToStopBefore then
-				if ArrayToDict(classesToStopBefore)[SuperClass] then
-					layer = nil
-				end
-			end
-		end
-		return prop_list
-	end
-	
-	local function GetPropertiesTableFromInstance(instance, CustomClassName) -- for save_specific
-		local ClassName = CustomClassName or instance.ClassName
-		local PropertiesTable = {}
-		local proplist = inherited_properties[ClassName]
-		if not proplist then
-			proplist = GetInheritedProps(ClassName)
-			inherited_properties[ClassName] = proplist
-		end
-		for _, Property in proplist do 
-			local PropertyName = Property.Name
-
-			if IgnoreProperties[PropertyName] then
-				continue
-			end
-
-			local ValueType = Property.ValueType
-
-			if IgnoreSharedStrings and ValueType == "SharedString" then -- ? More info in Options
-				continue
-			end
-
-			local Special, Category, Optional = Property.Special, Property.Category, Property.Optional
-
-			local raw = ReadPropertyFull(instance, Property, PropertyName, Special, Category, Optional)
-
-			if raw == __BREAK then
-				continue
-			end
-
-			if SharedStringOverwrite and ValueType == "BinaryString" then -- TODO: Convert this to table if more types are added
-				ValueType = "SharedString"
-			end
-			
-			if Category == "Enum" then
-				ValueType = "Enum"
-			elseif Category == "Class" then
-				ValueType = "Class"
-			end
-			
-			PropertiesTable[PropertyName] = {raw = raw, ValueType = ValueType, Optional = Optional}
-		end
-		return PropertiesTable
-	end	
 
 	local function ReturnItem(className, instance)
 		return '<Item class="' .. className .. '" referent="' .. GetRef(instance) .. '"><Properties>' -- TODO: Ideally this shouldn't return <Properties> as well as the line below to close it IF  IgnorePropertiesOfNotScriptsOnScriptsMode is Enabled OR If all properties are default (reduces file size by at least 1.4%)
@@ -3294,6 +3214,33 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		end
 	end
 
+	local function GetInheritedProps(className, useNotSaveableProperties, classesToStopBefore)
+		local prop_list = {}
+		local layer = ClassList[className]
+		while layer do
+			local layer_props
+			if useNotSaveableProperties then
+				layer_props = layer.NotSaveableProperties
+			else
+				layer_props = layer.Properties
+			end
+			table.move(layer_props, 1, #layer_props, #prop_list + 1, prop_list)
+
+			-- for _, prop in layer.Properties do
+			-- 	prop_list[prop_count] = prop -- ? table.clone is needed for case where .Default is modified
+			-- 	prop_count += 1
+			-- end
+			local SuperClass = layer.Superclass
+			layer = ClassList[SuperClass]
+			if classesToStopBefore then
+				if ArrayToDict(classesToStopBefore)[SuperClass] then
+					layer = nil
+				end
+			end
+		end
+		return prop_list
+	end
+
 	local CHUNK_LIMIT = 200 * 1024 * 1024 -- string length overflow prevention
 	local function save_cache(final)
 		local savestr = table.concat(savebuffer)
@@ -3325,49 +3272,27 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		local Ref = Instance.new(className) -- ! Assuming anything passed here is Creatable
 		local Item = ReturnItem(Ref.ClassName, Ref)
 
-		for propertyName, data in properties do
-			-- data = {raw, ValueType, Optional}
-			local raw, ValueType, Optional = data.raw, data.ValueType, data.Optional
-			local value, tag
-			if ValueType == "Class" then
-				tag = "ref"
-				if raw then
-					value = GetRef(raw)
-				else
-					value = "null"
-				end
-			elseif ValueType == "Enum" then
-				value, tag = XML_Descriptors.__ENUM(raw)
-			else
-				local Descriptor = XML_Descriptors[ValueType]
+		for propertyName, val in properties do
+			local whitelisted, value, tag
 
-				if Descriptor then
-					value, tag = ReturnValueAndTag(raw, ValueType, Descriptor)
-				elseif ValueType == "ProtectedString" then
-					tag = "ProtectedString"
-					value = XML_Descriptors.__PROTECTEDSTRING(raw)
-				elseif Optional then
-					Descriptor = XML_Descriptors[Optional]
+			-- TODO: Improve all sort of overrides & exceptions in the code (code below is awful)
+			if "Source" == propertyName then
+				tag = "ProtectedString"
+				value = XML_Descriptors.__PROTECTEDSTRING(val)
+				whitelisted = true
+			elseif "Name" == propertyName then
+				whitelisted = true
+				value, tag = ReturnValueAndTag(val, "string") -- * Doubt ValueType will change
+			end
 
-					if Descriptor then
-						if raw == nil then
-							-- * It can be empty, because it's optional
-							-- ? Though why even save it if it's empty considering it's optional
-							continue
-						-- value, tag = "", ValueType
-						else
-							value, tag = ReturnValueAndTag(raw, ValueType, Descriptor)
-						end
-					end
-				end
-			end	
-			if tag then
+			if whitelisted then
 				Item ..= ReturnProperty(tag, propertyName, value)
 			end
 		end
 		Item ..= "</Properties>"
 		return Item
 	end
+	
 	local function SaveAttributes(instance, useNotSaveableProperties, Prefix, InstanceToSet, classesToStopBefore)
 		if instance:GetAttribute(__BREAK) then
 			instance:SetAttribute(__BREAK, nil)
@@ -3421,83 +3346,86 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 	end
 	local function save_hierarchy(hierarchy)
 		for _, instance in hierarchy do
-			if IgnoreNotArchivable and not instance.Archivable then
-				continue
-			end
+			local InstanceOverride, ClassTagOverride, ClassNameOverride
 
-			local SkipEntirely = IgnoreList[instance]
-			if SkipEntirely then
-				continue
+			if not InstanceOverride then
+				InstanceOverride = InstancesOverrides[instance]
+				if InstanceOverride then
+					ClassTagOverride = InstanceOverride.__ClassName
+				end
 			end
-
 			local ClassName = instance.ClassName
 
 			local InstanceName = instance.Name
 
-			do
-				local OnIgnoredList = IgnoreList[ClassName]
-				if OnIgnoredList and (OnIgnoredList == true or OnIgnoredList[InstanceName]) then
+			if not ClassTagOverride then -- ! Assuming anything that has __ClassName comes from save_extra
+				if IgnoreNotArchivable and not instance.Archivable then
 					continue
 				end
-			end
-			
-			if Crashlog then Crashlog("Saving Instance "..instance:GetFullName().." Class "..ClassName) end
-			
-			if SaveAsAttributes then
-				SaveAttributes(instance, true, "__NotSaveable_")	
-			end
-			
-			if not DecompileIgnoring then
-				DecompileIgnoring = DecompileIgnore[instance]
 
-				if DecompileIgnoring == nil then
-					local DecompileIgnored = DecompileIgnore[ClassName]
-					if DecompileIgnored then
-						DecompileIgnoring = DecompileIgnored == true or DecompileIgnored[InstanceName]
+				local SkipEntirely = IgnoreList[instance]
+				if SkipEntirely then
+					continue
+				end
+
+				do
+					local OnIgnoredList = IgnoreList[ClassName]
+					if OnIgnoredList and (OnIgnoredList == true or OnIgnoredList[InstanceName]) then
+						continue
 					end
 				end
 
-				if DecompileIgnoring then
-					DecompileIgnoring = instance
-				elseif DecompileIgnoring == false then
-					DecompileIgnoring = 1 -- Ignore one instance
+				if not DecompileIgnoring then
+					DecompileIgnoring = DecompileIgnore[instance]
+
+					if DecompileIgnoring == nil then
+						local DecompileIgnored = DecompileIgnore[ClassName]
+						if DecompileIgnored then
+							DecompileIgnoring = DecompileIgnored == true or DecompileIgnored[InstanceName]
+						end
+					end
+
+					if DecompileIgnoring then
+						DecompileIgnoring = instance
+					elseif DecompileIgnoring == false then
+						DecompileIgnoring = 1 -- Ignore one instance
+					end
 				end
-			end
 
-			local InstanceOverride, ClassNameOverride, ClassTagOverride
+				do
+					local Fix = NotCreatableFixes[ClassName]
 
-			do
-				local Fix = NotCreatableFixes[ClassName]
-
-				if Fix then
-					if SaveNotCreatable then
+					if Fix then
+						if SaveNotCreatable then
 						if SavePropsAsAttributesForNotCreatableFixes then
 							local classesToStopBefore = {Fix, "Instance"}
 							SaveAttributes(instance, false, "__NotCreatableFix_", nil, classesToStopBefore)
 						end
-						ClassName, InstanceOverride = Fix, replaceClassName(instance, InstanceName, ClassName)
-					else
-						continue -- They won't show up in Studio anyway (Enable SaveNotCreatable if you wish to bypass this)
-					end
-				else -- ! Assuming nothing that is a PartOperation or inherits from it is in NotCreatableFixes
-					if TreatUnionsAsParts and instance:IsA("PartOperation") then
-						ClassName, InstanceOverride = "Part", replaceClassName(instance, InstanceName, ClassName)
-						ClassNameOverride = "BasePart" -- * Mutual Superclass for PartOperation and Part; For properties only
-					elseif not ClassList[ClassName] then -- ? API Dump is outdated then
-						if __DEBUG_MODE then
-							__DEBUG_MODE("Class not Found", ClassName)
+							ClassName, InstanceOverride = Fix, replaceClassName(instance, InstanceName, ClassName)
+						else
+							continue -- They won't show up in Studio anyway (Enable SaveNotCreatable if you wish to bypass this)
 						end
+					else -- ! Assuming nothing that is a PartOperation or inherits from it is in NotCreatableFixes
+						if TreatUnionsAsParts and instance:IsA("PartOperation") then
+							ClassName, InstanceOverride = "Part", replaceClassName(instance, InstanceName, ClassName)
+							ClassNameOverride = "BasePart" -- * Mutual Superclass for PartOperation and Part; For properties only
+						elseif not ClassList[ClassName] then -- ? API Dump is outdated then
+							if __DEBUG_MODE then
+								__DEBUG_MODE("Class not Found", ClassName)
+							end
 
-						ClassTagOverride = ClassName -- ? To at least retain .ClassName unlike the rest of the class-specific properties
-						ClassName = "Folder" -- ? replaceClassName is not needed because of the ClassTagOverride
+							ClassTagOverride = ClassName -- ? To at least retain .ClassName unlike the rest of the class-specific properties
+							ClassName = "Folder" -- ? replaceClassName is not needed because of the ClassTagOverride
+						end
 					end
 				end
 			end
-
-			if not InstanceOverride then
-				InstanceOverride = InstancesOverrides[instance]
+			
+			if Crashlog then Crashlog("Saving Instance "..instance:GetFullName().." Class "..ClassName) end
+			if SaveAsAttributes then
+				SaveAttributes(instance, true, "__NotSaveable_")
 			end
-
+			
 			-- ? The reason we only save .Name (and few other props in save_specific) is because
 			-- ? we can be sure this is a custom container (ex. NilInstancesFixes)
 			-- ? However, in case of NotCreatableFixes, the Instance might have Tags, Attributes etc. that can potentially be saved (even though it's a Folder)
@@ -3525,7 +3453,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 
 									default_instances[ClassName] = default_instance
 								elseif __DEBUG_MODE then
-									__DEBUG_MODE("Unable to create default Instance x2", ClassName)
+									__DEBUG_MODE("Unable to create default Instance x2", ClassName, result)
 								end	
 							elseif __DEBUG_MODE then
 								__DEBUG_MODE("Unable to create default Instance", ClassName)
@@ -3784,18 +3712,43 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		end
 	end
 
-	local function save_extra(name, hierarchy, customClassName, Properties)
-		if not Properties then
-			Properties = {}
+	local function save_extra(name, instanceOrTable, saveProps, customClassName, source)
+		if not customClassName then
+			customClassName = "Folder"
 		end
-		Properties["Name"] = {raw = name, ValueType = "string"}
-		savebuffer[savebuffer_size] = save_specific((customClassName or "Folder"), Properties)
-		savebuffer_size += 1
-		if hierarchy then
-			save_hierarchy(hierarchy)
+
+		local properties = { Name = name, Source = source }
+		local hierarchy
+
+		if instanceOrTable then
+			if type(instanceOrTable) == "table" then
+				hierarchy = instanceOrTable
+			else
+				hierarchy = instanceOrTable:GetChildren()
+				if saveProps then
+					-- IgnoreList[instanceOrTable] = nil
+					-- IgnoreNotArchivable = false
+
+					InstancesOverrides[instanceOrTable] = {
+						__ClassName = customClassName,
+						__Children = hierarchy,
+						Properties = properties,
+					}
+
+					save_hierarchy({ instanceOrTable })
+				end
+			end
 		end
-		savebuffer[savebuffer_size] = "</Item>"
-		savebuffer_size += 1
+
+		if not saveProps then
+			savebuffer[savebuffer_size] = save_specific(customClassName, properties)
+			savebuffer_size += 1
+			if hierarchy then
+				save_hierarchy(hierarchy)
+			end
+			savebuffer[savebuffer_size] = "</Item>"
+			savebuffer_size += 1
+		end
 	end
 
 	local function save_game()
@@ -3824,12 +3777,12 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 			if LocalPlayer then
 				if IsolateLocalPlayer then
 					SaveNotCreatable = true
-					save_extra("LocalPlayer", LocalPlayer:GetChildren(), "Folder", GetPropertiesTableFromInstance(LocalPlayer, "Folder"))
+					save_extra("LocalPlayer", LocalPlayer, true)
 				end
 				if IsolateLocalPlayerCharacter then
 					local LocalPlayerCharacter = LocalPlayer.Character
 					if LocalPlayerCharacter then
-						save_extra("LocalPlayer Character", LocalPlayerCharacter:GetChildren(), "Model", GetPropertiesTableFromInstance(LocalPlayerCharacter))
+						save_extra("LocalPlayer Character", LocalPlayerCharacter, true, "Model")
 					end
 				end
 			end
@@ -3837,12 +3790,12 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 
 		if IsolateStarterPlayer then
 			-- SaveNotCreatable = true -- TODO: Enable if StarterPlayerScripts or StarterCharacterScripts stop showing up in isolated folder in Studio
-			save_extra("StarterPlayer", service.StarterPlayer:GetChildren(), "Folder", GetPropertiesTableFromInstance(service.StarterPlayer, "Folder"))
+			save_extra("StarterPlayer", service.StarterPlayer) -- no reason to saveprops as you can see the props on the original instance
 		end
 
 		if IsolatePlayers then
 			SaveNotCreatable = true
-			save_extra("Players", service.Players:GetChildren(), "Folder", GetPropertiesTableFromInstance(service.Players, "Folder"))
+			save_extra("Players", service.Players) -- no reason to saveprops as you can see the props on the original instance
 		end
 
 		if NilInstances and global_container.getnilinstances then
@@ -3887,8 +3840,9 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 			save_extra(
 				"README",
 				nil,
+				nil,
 				"Script",
-				{Source = {raw = "--[[\n"
+				"--[[\n"
 					.. (#RecoveredScripts ~= 0 and "\t\tIMPORTANT: Original Source of these Scripts was Recovered: " .. service.HttpService:JSONEncode(
 						RecoveredScripts
 					) .. "\n" or "")
@@ -3900,7 +3854,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 
 		ServerStorage, ServerScriptService and Server Scripts are IMPOSSIBLE to save because of FilteringEnabled.
 
-		If your player cannot spawn into the game, please move PlayerModule in StarterPlayer somewhere else or delete it. Then run `game:GetService("Players").CharacterAutoLoads = true`.
+		If your player cannot spawn into the game, please move PlayerModule in StarterPlayer somewhere else or delete them. Then run `game:GetService("Players").CharacterAutoLoads = true`.
 		And use "Play Here" to start game instead of "Play" to spawn your Character where your Camera currently is.
 
 		If the chat system does not work, please use the explorer and delete everything inside the TextChatService/Chat service(s). 
@@ -3938,7 +3892,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 					.. version()
 					.. " Executor: "
 					.. (identify_executor and table.concat({ identify_executor() }, " ") or "Unknown")
-					.. "\n]]", ValueType = "ProtectedString"}}
+					.. "\n]]"
 			)
 		end
 		do
@@ -3988,7 +3942,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 				local SEGMENT_SIZE = 4145728 -- Celery has an arbitrary savefile/appendfile size limit of ~4MB for reasons unknown. This is a workaround to save the file in segments.
 
 				local totallen, currentlen = math.ceil(totalsize / SEGMENT_SIZE), 1
-				
+
 				writefile(placename, header)
 				for _, chunk in chunks do
 					local length = math.ceil(chunk.size / SEGMENT_SIZE)
