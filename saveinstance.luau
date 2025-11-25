@@ -1827,13 +1827,17 @@ do
 				Properties = ClassProperties,
 				NotSaveableProperties = NotSaveableClassProperties, -- Contains properties that are canload or cansave false in the api dump
 				Superclass = API_Class.Superclass,
+				Tags = {},
+				NotCreatable = nil,
 			}
 
 			local ClassTags = API_Class.Tags
 			local ClassName = API_Class.Name
 
 			if ClassTags then
-				Class.Tags = ArrayToDict(ClassTags, nil, nil, "string") -- or {}
+				local Tags = ArrayToDict(ClassTags, nil, nil, "string")
+				Class.Tags = Tags -- or {}
+				Class.NotCreatable = Tags.NotCreatable
 			end
 
 			local NotScriptableFixClass = NotScriptableFixes[ClassName]
@@ -3442,8 +3446,8 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 					if IgnoreDefaultProperties then
 						default_instance = default_instances[ClassName]
 						if not default_instance then
-							local ClassTags = ClassList[ClassName].Tags
-							if not (ClassTags and ClassTags.NotCreatable) then -- __api_dump_class_not_creatable__ also indicates this
+							local Class = ClassList[ClassName]
+							if not Class.NotCreatable then -- __api_dump_class_not_creatable__ also indicates this
 								-- ! NotCreatableFixes are exceptions to the check above meaning if we don't keep the NotCreatableFixes updated then Instance.new below might start erroring in the future potentially; HOWEVER IsPropertyModified solves this issue and no updates are really needed as NotCreatableFixes is up-to-date as of VERSION-HERE (which is when IPM gets enabled)
 								local ok, result = pcall(Instance.new, ClassName) -- ! pcall is needed for level 3 execs (for example TestService); EXCEPTION NOTED ABOVE (irrelevant)
 
@@ -3452,11 +3456,14 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 									default_instance = {}
 
 									default_instances[ClassName] = default_instance
-								elseif __DEBUG_MODE then
-									__DEBUG_MODE("Unable to create default Instance x2", ClassName, result)
+								else
+									Class.NotCreatable = true
+									if __DEBUG_MODE then
+										__DEBUG_MODE("Failed to create default Instance", ClassName, result)
+									end
 								end	
 							elseif __DEBUG_MODE then
-								__DEBUG_MODE("Unable to create default Instance", ClassName)
+								__DEBUG_MODE("Unable to create default Instance (NotCreatable)", ClassName)
 							end
 						end
 					end
@@ -3730,7 +3737,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 					-- IgnoreNotArchivable = false
 
 					InstancesOverrides[instanceOrTable] = {
-						__ClassName = customClassName,
+						__ClassName = customClassName, -- ! Assuming any class that contains ProtectedString is never passed, because it expects bytecode, not normal code
 						__Children = hierarchy,
 						Properties = properties,
 					}
@@ -3820,7 +3827,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 					local Class = ClassList[ClassName]
 					if Class then
 						local ClassTags = Class.Tags
-						if ClassTags and ClassTags.Service then -- For CSGDictionaryService, NonReplicatedCSGDictionaryService, LogService, ProximityPromptService, TestService & more
+						if Class.Tags.Service then -- For CSGDictionaryService, NonReplicatedCSGDictionaryService, LogService, ProximityPromptService, TestService & more
 							-- instance.Parent = game
 							instance = nil
 							-- continue
@@ -4191,11 +4198,13 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 			end
 		end
 		GLOBAL_ENV[placename] = nil
+
+		elapse_t = os.clock() - elapse_t
+		local Log10 = math.log10(elapse_t)
+		local ExtraTime = 10
+
 		if StatusText then
 			task.spawn(function()
-				elapse_t = os.clock() - elapse_t
-				local Log10 = math.log10(elapse_t)
-				local ExtraTime = 10
 				if ok then
 					StatusText.Text = string.format("Saved! Time %.3f seconds; Size %s", elapse_t, get_size_format())
 					StatusText.TextColor3 = Color3.new(0, 1)
@@ -4216,6 +4225,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		end
 
 		if OPTIONS.ShutdownWhenDone and ok then
+			task.wait(Log10 * 2 + ExtraTime)
 			game:Shutdown()
 		end
 	end
