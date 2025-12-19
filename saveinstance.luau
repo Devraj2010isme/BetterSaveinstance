@@ -749,9 +749,6 @@ XML_Descriptors = {
 	__CDATA = function(raw) -- ? Normally Roblox doesn't use CDATA unless the string has newline characters (\n); We rather CDATA everything for sake of speed
 		return "<![CDATA[" .. raw .. "]]>"
 	end,
-	__ENUM = function(raw)
-		return raw.Value, "token"
-	end,
 	__NORMALIZE_NUMBER = function(raw)
 		if raw ~= raw then
 			return "NAN"
@@ -837,6 +834,48 @@ XML_Descriptors = {
 			.. "</R22>",
 			"CoordinateFrame"
 	end,
+	-- CFrameQuat = function(raw) -- ? This will probably never release as it's not even used anywhere naturally, but there are hints it does exist as a DataType
+	-- 	local X, Y, Z, R00, R01, R02, R10, R11, R12, R20, R21, R22 = raw:GetComponents()
+	-- 	local trace = R00 + R11 + R22
+	-- 	local S, QW, QX, QY, QZ
+
+	-- 	if trace > 0 then
+	-- 		S = math.sqrt(1 + trace) * 2
+	-- 		QW = 0.25 * S
+	-- 		QX = (R21 - R12) / S
+	-- 		QY = (R02 - R20) / S
+	-- 		QZ = (R10 - R01) / S
+	-- 	elseif (R00 > R11) and (R00 > R22) then
+	-- 		S = math.sqrt(1 + R00 - R11 - R22) * 2
+	-- 		QW = (R21 - R12) / S
+	-- 		QX = 0.25 * S
+	-- 		QY = (R01 + R10) / S
+	-- 		QZ = (R02 + R20) / S
+	-- 	elseif R11 > R22 then
+	-- 		S = math.sqrt(1 + R11 - R00 - R22) * 2
+	-- 		QW = (R02 - R20) / S
+	-- 		QX = (R01 + R10) / S
+	-- 		QY = 0.25 * S
+	-- 		QZ = (R12 + R21) / S
+	-- 	else
+	-- 		S = math.sqrt(1 + R22 - R00 - R11) * 2
+	-- 		QW = (R10 - R01) / S
+	-- 		QX = (R02 + R20) / S
+	-- 		QY = (R12 + R21) / S
+	-- 		QZ = 0.25 * S
+	-- 	end
+
+	-- 	return XML_Descriptors.__VECTOR(X, Y, Z)
+	-- 		.. "<QX>"
+	-- 		.. QX
+	-- 		.. "</QX><QY>"
+	-- 		.. QY
+	-- 		.. "</QY><QZ>"
+	-- 		.. QZ
+	-- 		.. "</QZ><QW>"
+	-- 		.. QW
+	-- 		.. "</QW>"
+	-- end,
 	Color3 = function(raw) -- Each element is a <float>
 		return "<R>" .. raw.R .. "</R><G>" .. raw.G .. "</G><B>" .. raw.B .. "</B>" -- ? It is recommended that Color3 is encoded with elements instead of text.
 	end,
@@ -884,6 +923,9 @@ XML_Descriptors = {
 		return "<CFrame>" .. XML_Descriptors.CFrame(raw) .. "</CFrame>"
 	end,
 	-- DateTime = function(raw) return raw.UnixTimestampMillis end, -- ? Not sure
+	EnumItem = function(raw)
+		return raw.Value, "token"
+	end,
 	Faces = function(raw)
 		-- The text of this element is formatted as an integer between 0 and 63
 		return "<faces>" .. __COUNT_BITS(raw.Right, raw.Top, raw.Back, raw.Left, raw.Bottom, raw.Front) .. "</faces>"
@@ -902,7 +944,7 @@ XML_Descriptors = {
 				return "<Family>"
 					.. XML_Descriptors.ContentId(raw.Family)
 					.. "</Family><Weight>"
-					.. (ok_w and XML_Descriptors.__ENUM(weight) or "")
+					.. (ok_w and XML_Descriptors.EnumItem(weight) or "")
 					.. "</Weight><Style>"
 					.. (ok_s and style.Name or "") -- Weird but this field accepts .Name of enum instead..
 					.. "</Style>"
@@ -916,7 +958,7 @@ XML_Descriptors = {
 			return "<Family>"
 				.. XML_Descriptors.ContentId(raw.Family)
 				.. "</Family><Weight>"
-				.. (EmptyWeight and "" or XML_Descriptors.__ENUM(raw.Weight))
+				.. (EmptyWeight and "" or XML_Descriptors.EnumItem(raw.Weight))
 				.. "</Weight><Style>"
 				.. (EmptyStyle and "" or raw.Style.Name) -- Weird but this field accepts .Name of enum instead..
 				.. "</Style>"
@@ -1015,7 +1057,7 @@ XML_Descriptors = {
 	-- SystemAddress = function(raw) return raw end, -- PeerId? systemAddress as a string in the format "IP|Port", "|" being portDelineator, should not be '.', ':', '%', '-', '/', a number, or a-f  -- ? Not sure
 	-- TweenInfo = function(raw) -- ? Not sure
 	-- 	local __NORMALIZE_NUMBER = XML_Descriptors.__NORMALIZE_NUMBER
-	-- 	local enum = XML_Descriptors.__ENUM
+	-- 	local EnumItem = XML_Descriptors.EnumItem
 
 	-- 	return "<Time>"
 	-- 		.. __NORMALIZE_NUMBER(raw.Time)
@@ -1108,6 +1150,7 @@ XML_Descriptors = {
 
 	--------------------------------------------------------------
 	-----------%localappdata%/Roblox/GlobalSettings_13.xml--------
+	-----------------------settings().Studio----------------------
 	--------------------------------------------------------------
 	-- QDir = function(raw) -- ? Not sure
 	-- 	return raw
@@ -1291,7 +1334,7 @@ do
 			Tags = function(instance)
 				-- https://github.com/RobloxAPI/spec/blob/master/properties/Tags.md
 
-				local tags = instance:GetTags()
+				local tags = service.CollectionService:GetTags(instance) -- ? Seems faster than instance:GetTags
 
 				if #tags == 0 then
 					return ""
@@ -1566,6 +1609,23 @@ do
 				return AttenuationSerialize(instance:GetDistanceAttenuation())
 			end,
 		},
+		--AuroraScript = { -- Class isn't released yet
+		--	AuroraScriptBindingsSerialize = function(instance)
+		--		local Bindings = service.AuroraScriptService:getInstancesForBehavior(instance)
+		--		
+		--		if #Bindings == 0 then
+		--			return ""
+		--		end
+		--		
+		--		local Bindings_Referents = {}
+		--		
+		--		for _, Binding in Bindings do
+		--			table.insert(Bindings_Referents, GetRef(Binding))
+		--		end
+		--		
+		--		return table.concat(Bindings_Referents, "\0")
+		--	end,
+		--},
 		-- DebuggerBreakpoint = {line="Line"}, -- ? This shouldn't appear in live games (try to prove this wrong)
 		BallSocketConstraint = { MaxFrictionTorqueXml = "MaxFrictionTorque" },
 		BasePart = {
@@ -1827,17 +1887,18 @@ do
 				Properties = ClassProperties,
 				NotSaveableProperties = NotSaveableClassProperties, -- Contains properties that are canload or cansave false in the api dump
 				Superclass = API_Class.Superclass,
-				Tags = {},
+				-- Tags = {},
 				NotCreatable = nil,
 			}
 
-			local ClassTags = API_Class.Tags
 			local ClassName = API_Class.Name
+			local ClassTags = API_Class.Tags
 
 			if ClassTags then
 				local Tags = ArrayToDict(ClassTags, nil, nil, "string")
 				Class.Tags = Tags -- or {}
 				Class.NotCreatable = Tags.NotCreatable
+				Class.Service = Tags.Service
 			end
 
 			local NotScriptableFixClass = NotScriptableFixes[ClassName]
@@ -2123,7 +2184,7 @@ All options are case insensitive.
 - NotCreatableFixes: `table<Instance.ClassName>`
   - The instances to convert using SaveNotCreatable
   - {"Player"} is the same as {Player = "Folder"}; Format like {SpawnLocation = "Part"} is only to be used when SpawnLocation inherits from "Part" AND "Part" is Creatable.
-  - Default: {["CloudLocalizationTable"] = "LocalizationTable", ["InputObject"] = "Folder", ["LodDataEntity"] = "Folder", ["LodDataService"] = "Folder",["Translator"] = "Folder", ["TextChatMessage"] = "Folder", [""] = "Folder", ["AnimationTrack"] = "Folder", ["Player"] = "Folder", ["PlayerGui"] = "Folder", ["PlayerScripts"] = "Folder", ["PlayerMouse"] = "Folder", ["ScreenshotHud"] = "Folder", ["StudioData"] = "Folder", ["TextSource"] = "Folder", ["TouchTransmitter"] = "Folder", ["Dragger"] = "Folder", ["AdvancedDragger"] = "Folder"}
+  - Default: {["CloudLocalizationTable"] = "LocalizationTable", ["InputObject"] = "Folder", ["LodDataEntity"] = "Folder", ["LodDataService"] = "Folder", ["Translator"] = "Folder", ["TextChatMessage"] = "Folder", [""] = "Folder", ["AnimationTrack"] = "Folder", ["Player"] = "Folder", ["PlayerGui"] = "Folder", ["PlayerScripts"] = "Folder", ["PlayerMouse"] = "Folder", ["ScreenshotHud"] = "Folder", ["StudioData"] = "Folder", ["TextSource"] = "Folder", ["TouchTransmitter"] = "Folder", ["Dragger"] = "Folder", ["AdvancedDragger"] = "Folder", ["Platform"] = "Part", ["Status"] = "Model"}
  - SavePropsAsAttributesForNotCreatableFixes
    - Converts CanSave/CanLoad properties of instances with a NotCreatableFix which can't be saved otherwise into attributes.
    - Enables SaveNotCreatable
@@ -2268,7 +2329,11 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 			["TextSource"] = "Folder",
 			["TouchTransmitter"] = "Folder",
 			["Dragger"] = "Folder",
-			["AdvancedDragger"] = "Folder"
+			["AdvancedDragger"] = "Folder",
+			["Platform"] = "Part",
+			["Status"] = "Model", -- gets created by studio automatically usually so there will be duplicates due to this
+			-- ["CoreScript"] = "Script", -- useless
+			-- ["ChatWindowMessageProperties"] = "TextChatMessageProperties", -- ? Not needed as this can be derived with ChatWindowConfiguration.DeriveNewMessageProperties
 		},
 		SavePropsAsAttributesForNotCreatableFixes = false,
 		-- ! Risky
@@ -2455,11 +2520,11 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 			end
 		end
 
-		ignorePath(service.StarterPlayer:FindFirstChild("StarterPlayerScripts"))
+		ignorePath(service.StarterPlayer:FindFirstChildOfClass("StarterPlayerScripts"))
 
 		local LocalPlayer = service.Players.LocalPlayer
 		if LocalPlayer then
-			ignorePath(LocalPlayer:FindFirstChild("PlayerScripts"))
+			ignorePath(LocalPlayer:FindFirstChildOfClass("PlayerScripts"))
 		end
 	end
 
@@ -3104,37 +3169,47 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		local raw = ReadProperty(instance, Property, PropertyName, Special, Category, Optional)
 
 		if raw == __BREAK then -- ! Assuming __BREAK is always returned when there's a failure to read a property
-			if Crashlog then Crashlog("    Failed to read property "..PropertyName.." trying UGCValidationService fallback") end
-			local ok, result = pcall(gethiddenproperty_fallback, instance, PropertyName) -- * This helps in reading: Vector3int16, OptionalCoordinateFrame DataTypes. It also acts as an almost entire fallback for gethiddenproperty in case it is missing
-
-			if result == nil and not Optional then
-				ok = nil
+			local GHPFFailed, Fallback = Property.GHPFFailed, Property.Fallback
+			if (GHPFFailed or not gethiddenproperty_fallback) and not Fallback then
+				if Crashlog then Crashlog("    Failed to read property "..PropertyName) end
+				return __BREAK
 			end
 
-			if ok then
-				raw = result
-			else
-				local Fallback = Property.Fallback
+			if gethiddenproperty_fallback and not GHPFFailed then
+				if Crashlog then Crashlog("    Failed to read property "..PropertyName.." trying UGCValidationService fallback") end
+				local ok, result = pcall(gethiddenproperty_fallback, instance, PropertyName) -- * This helps in reading: Vector3int16, OptionalCoordinateFrame DataTypes. It also acts as an almost entire fallback for gethiddenproperty in case it is missing
+				if result == nil and not Optional then
+					ok = nil
+				end
 
-				if Fallback then
-					if Crashlog then Crashlog("    Failed to read property "..PropertyName.." trying fallback") end
-					ok, result = pcall(Fallback, instance)
-
-					if ok then
-						raw = result
-					else
-						Property.Fallback = nil -- Low level execs might fail due to lack of some Capabilities
-						if __DEBUG_MODE then
-							__DEBUG_MODE("Fix Failed", PropertyName, result)
-						end
+				if ok then
+					raw = result
+				else
+					GHPFFailed = true
+					Property.GHPFFailed = GHPFFailed
+					if not Fallback then
+						if Crashlog then Crashlog("    Failed to read property "..PropertyName) end
 						return __BREAK
 					end
+				end
+			end
+
+			if (GHPFFailed or not gethiddenproperty_fallback) and Fallback then
+				if Crashlog then Crashlog("    Failed to read property "..PropertyName.." trying fallback") end
+				local ok, result = pcall(Fallback, instance)
+
+				if ok then
+					raw = result
 				else
-					if Crashlog then Crashlog("    Failed to read property "..PropertyName) end
+					Property.Fallback = nil -- Low level execs might fail due to lack of some Capabilities
+					if __DEBUG_MODE then
+						__DEBUG_MODE("Fix Failed", PropertyName, result)
+					end
 					return __BREAK
 				end
 			end
 		end
+
 		if Crashlog then Crashlog("    Property "..PropertyName.." read successfully") end
 		return raw
 	end
@@ -3361,13 +3436,14 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 			local ClassName = instance.ClassName
 
 			local InstanceName = instance.Name
+			local SkipEntirely
 
 			if not ClassTagOverride then -- ! Assuming anything that has __ClassName comes from save_extra
 				if IgnoreNotArchivable and not instance.Archivable then
 					continue
 				end
 
-				local SkipEntirely = IgnoreList[instance]
+				SkipEntirely = IgnoreList[instance]
 				if SkipEntirely then
 					continue
 				end
@@ -3542,7 +3618,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 								value = "null"
 							end
 						elseif Category == "Enum" then -- ! We do this order (Enums before Descriptors) specifically because Font Enum might get a Font Descriptor despite having Enum Category, unlike Font DataType which that Descriptor is meant for
-							value, tag = XML_Descriptors.__ENUM(raw)
+							value, tag = XML_Descriptors.EnumItem(raw)
 						else
 							local Descriptor = XML_Descriptors[ValueType]
 
@@ -3827,7 +3903,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 					local Class = ClassList[ClassName]
 					if Class then
 						local ClassTags = Class.Tags
-						if Class.Tags.Service then -- For CSGDictionaryService, NonReplicatedCSGDictionaryService, LogService, ProximityPromptService, TestService & more
+						if Class.Service then -- For CSGDictionaryService, NonReplicatedCSGDictionaryService, LogService, ProximityPromptService, TestService & more
 							-- instance.Parent = game
 							instance = nil
 							-- continue
@@ -4113,7 +4189,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 			task.spawn(function()
 				local LocalPlayer = GetLocalPlayer()
 
-				local PlayerScripts = LocalPlayer:FindFirstChild("PlayerScripts")
+				local PlayerScripts = LocalPlayer:FindFirstChildOfClass("PlayerScripts")
 				if PlayerScripts then
 					local function construct_InstanceOverride(instance)
 						local children = instance:GetChildren()
